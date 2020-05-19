@@ -22,8 +22,8 @@ class QATE:
 			H_0_temp[i][0] = self.H_0[i][0]*self.dt*(1 - k*self.dt/self.t)
 		for i in range(len(self.H_1)):
 			H_1_temp[i][0] = self.H_1[i][0]*self.dt**2*k/self.t 
-		time_evolution_list = H_1_temp
-		time_evolution_list.extend(H_0_temp)
+		time_evolution_list = H_0_temp
+		time_evolution_list.extend(H_1_temp)
 		time_evolution = TimeEvolutionOperator(time_evolution_list,1,1)
 		circuit,registers = time_evolution.step(circuit,registers)
 		return(circuit,registers)

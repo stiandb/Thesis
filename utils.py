@@ -220,7 +220,7 @@ class ControlledTimeEvolutionOperator:
 
 def pairing_hamiltonian(n_states,delta,g):
 	"""
-	This function gives out the two-pair pairing hamiltonian in a format recognized by the 
+	This function gives out the pairing hamiltonian in a format recognized by the 
 	methods developed in this thesis. 
 	Inputs:
 		n_states (int) - The number of basis states / qubits used in the model.

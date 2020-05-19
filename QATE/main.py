@@ -12,6 +12,6 @@ def initial_state(circuit,registers):
 	return(circuit,registers)
 
 dt = 0.5
-for t in range(1,25):
+for t in range(1,22,1):
 	solver = QATE(n_spin_orbitals,H_0,H_1,initial_state,dt,t)
 	print(solver.calculate_energy())
