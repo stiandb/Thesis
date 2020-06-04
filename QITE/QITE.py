@@ -3,6 +3,8 @@ sys.path.append('../')
 from utils import *
 from copy import deepcopy
 from scipy.optimize import fmin_cg
+from sympy import Matrix
+import scipy as scipy
 
 class QITE:
 	def __init__(self,n_qubits,hamiltonian_list,a_list,dt,initial_state,seed=None,shots=1000,lamb=0.1):
@@ -10,7 +12,7 @@ class QITE:
 		self.n_terms = len(hamiltonian_list)
 		self.a_list = a_list
 		for i in range(len(self.a_list)):
-			for j in range(len(self.a_list[0])):
+			for j in range(len(self.a_list[i])):
 				self.a_list[i][j][0] = 1
 		self.dt = dt
 		self.seed = seed
@@ -35,7 +37,6 @@ class QITE:
 			circuit,registers = pauli_expectation_transformation(qubit,gate,circuit,registers)
 		expval = measure_expectation_value(qubit_list,factor,circuit,registers,seed=self.seed,shots=self.shots)
 		return(expval)
-
 
 	def b_i(self,i,term):
 		sigma_iH = operator_product(deepcopy(self.a_list[term][i]),deepcopy(self.hamiltonian_list[term]))
@@ -71,6 +72,7 @@ class QITE:
 	
 	def evolve_state(self,circuit,registers):
 		if len(self.time_evolution_list) == 0:
+			circuit, registers = self.initial_state(circuit,registers)
 			return(circuit,registers)
 		circuit,registers = self.initial_state(circuit,registers)
 		time_evolution = TimeEvolutionOperator(self.time_evolution_list,self.dt,self.dt)
@@ -92,7 +94,7 @@ class QITE:
 		S = S + S_temp.conj().T
 		dalpha = np.eye(b.shape[0])*self.lamb #regularization
 		A = S + S.T + dalpha
-		x = np.linalg.lstsq(A,-b,rcond=-1)[0]
+		x = scipy.sparse.linalg.cg(A,-b)[0]
 		if np.any(np.iscomplex(c)):
 			print('Warning: a[m] contains complex number. All solutions should be real')
 			print('a[m]: ',x)
@@ -100,16 +102,20 @@ class QITE:
 			x = np.real(x)
 		for i in range(x.shape[0]):
 			self.a_list[term][i][0] = x[i]
-		self.time_evolution_list.extend(deepcopy(self.a_list[term]))
+		self.time_evolution_list_temp.extend(deepcopy(self.a_list[term]))
 		for i in range(x.shape[0]):
 			self.a_list[term][i][0] = 1
 		
 
 	def solve(self,iterations):
+		print('Initial Energy: ', self.measure_energy())
 		for iteration in range(iterations):
+			self.time_evolution_list_temp = []
 			for term in range(len(self.hamiltonian_list)):
 				self.step(term)
-				print('Energy after {} iteration and term {}: '.format(iteration+1,term+1),self.measure_energy())
+				print('Hamiltonian term {}/{}.'.format(term+1,len(self.hamiltonian_list)))
+			self.time_evolution_list.extend(self.time_evolution_list_temp)
+			print('Energy after iteration {}: '.format(iteration+1),self.measure_energy())
 		return(self.measure_energy())
 
 	def measure_energy(self):

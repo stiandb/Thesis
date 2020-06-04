@@ -2,6 +2,7 @@ import qiskit as qk
 import numpy as np
 from copy import deepcopy
 
+
 def QFT(circuit,registers,inverse=False):
 	"""
 	Inputs:
@@ -132,10 +133,10 @@ def pairing_initial_state(circuit,registers):
 
 	"""
 	n = len(registers[0])
-	for i in range(n,2):
+	for i in range(0,n,2):
 		circuit.h(registers[0][i])
 		circuit.cx(registers[0][i],registers[0][i+1])
-	return(circuit,registers)
+	return(circuit, registers)
 
 class ControlledTimeEvolutionOperator:
 	"""
@@ -289,6 +290,8 @@ def measure_expectation_value(qubit_list,factor,circuit,registers,seed=None,shot
 		E += eigenval*value
 	E /= shots
 	return(factor*E)
+
+
 def initialize_circuit(n_qubits,n_ancilla,classical_bits):
 	"""
 	Initializes circuits for experiment
@@ -604,7 +607,7 @@ def hadamard_test(circuit,registers,hamiltonian_term,imag=True,shots=1000,ancill
 
 def operator_product(operator_1, operator_2):
 	"""
-	Calculates the product of two one-termed operators.
+	Calculates the product of two one-termed operators containing pauli-gates.
 	Input:
 		operator_1 (list) - Example: [5,[0,'z'],[3,y]] is a two-qubit operator which acts on the first qubit
 							with the pauli-z gate and the fourth qubit with the pauli-y gate with a factor of five.
@@ -625,6 +628,7 @@ def operator_product(operator_1, operator_2):
 		return(operator)
 	operator = deepcopy(operator_2)
 	factor=operator_1[0]*operator_2[0]
+	qubit_list = []
 	for qubit_1, gate_1 in operator_1[1:]:
 		qubit_match = False
 		idx = 0
@@ -650,14 +654,188 @@ def operator_product(operator_1, operator_2):
 				elif gate_1 == 'z' and gate_2 == 'y':
 					factor *= -np.complex(0,1)
 					operator[idx] = [qubit_1,'x']
+				elif gate_1 == gate_2:
+					qubit_list.append(qubit_1)
 				break
 		if not qubit_match:
 			operator.append([qubit_1,gate_1])
+	if len(qubit_list) != 0:
+		for qubit,gate in operator[1:]:
+			if qubit in qubit_list:
+				operator.remove([qubit,gate])
+			idx += 1
 	operator[0] = factor
 	return(operator)
-			
+
+class AmplitudeEncoder:
+	"""
+	Encodes an arbitrary vector into the amplitudes of a quantum state
+	"""
+	def __init__(self,eps = 1e-14):
+		"""
+		Input:
+			eps (float) - In case of zero vectors, this is used to prevent dividing by zero when normalizing the dataset
+		"""
+		self.eps=eps
+		self.n_qubits = None
+		self.usage = None
+
+	def make_amplitude_list(self,X):
+		"""
+		Input:
+			X (numpy array) - Array containing dataset to encode into the quantum state
+		"""
+
+		X = X/(np.sqrt(np.sum(X**2))+self.eps)
+		values = list(X.flatten())
+		self.n_qubits = int(np.ceil(np.log2(len(values)))) if self.n_qubits is None else self.n_qubits
+		n_ancilla = 1 if (self.n_qubits - 2 <= 1) else (self.n_qubits - 2)
+		ancilla_register = qk.QuantumRegister(n_ancilla)
+		keys = self.convert_binary(range(len(values)))
+		if keys[-1][:-1] != keys[-2][:-1]:
+			keys.append(keys[-1][:-1] + '1')
+			values.append(0)
+		amplitude_list = [[k, v] for k,v in zip(keys,values)]
+		return(amplitude_list,ancilla_register)
+
+	def convert_binary(self,idx):
+		"""
+		Converts a list containing indexes to binary numbers.
+		Input:
+			idx (list) - List containing indexes
+		Output:
+			binary_list (list) - List containing the corresponding binary numbers
+		"""
+		get_bin = lambda x: format(x,'b')
+		binary_list = []
+		for i in idx:
+			binary = get_bin(i)
+			if len(binary) !=  self.n_qubits:
+				for j in range(self.n_qubits - len(binary)):
+					 binary = '0' + binary
+			binary_list.append(binary)
+		return(binary_list)
+
+	def iterate(self,amplitude_list,circuit,registers):
+		"""
+		Performs a step in the amplitude encoding algorithm. That is, utilizes y-rotation to zero out one qubit
+
+		Input:
+			amplitude_list (list) - List returned by the make_amplitude_list function
+			circuit (qiskit QuantumCircuit) - the circuit to perform the amplitude encoding on
+			registers (list) - List containing qiskit QuantumRegisters. The first should be the register to appy the encoding to
+								The final should be the classical register
+		Output:
+			new_amplitude_list (list) - List containing the amplitudes and binary numbers for the next step
+			circuit (qiskit QuantumCircuit) - the circuit to perform the amplitude encoding on
+			registers (list) - List containing qiskit QuantumRegisters. The first should be the register to appy the encoding to
+								The final should be the classical register
+		"""
+		new_amplitudes = []
+		for idx in range(len(amplitude_list)-1,-1,-2):
+			bit_string, amp1 = amplitude_list[idx]
+			amp0 = amplitude_list[idx-1][1]
+			if amp0 == 0 and amp1 == 0:
+				new_amplitudes.insert(0,[bit_string[:-1],0])
+				continue
+			elif amp1 == 0:
+				theta = 0
+				amp = amp0
+				new_amplitudes.insert(0,[bit_string[:-1],amp])
+				continue
+			elif amp0 == 0:
+				theta = -np.pi
+				amp = amp1
+			else:
+				theta = -2*np.arctan(amp1/amp0)
+				amp = amp0*np.sqrt(amp1**2/amp0**2 + 1)
+			for qbit,bit in enumerate(bit_string[:-1]):
+				if bit == '0':
+					circuit.x(registers[0][qbit])
+			control_qubits = [registers[0][i] for i in range(len(bit_string[:-1]))]
+			circuit.mcry(theta, control_qubits, registers[0][(len(bit_string)-1)], registers[-2])
+			new_amplitudes.insert(0,[bit_string[:-1],amp])
+			for qbit,bit in enumerate(bit_string[:-1]):
+				if bit == '0':
+					circuit.x(registers[0][qbit])
+		return(new_amplitudes,circuit,registers)
+
+	def __call__(self,circuit,registers,X,inverse=False):
+		"""
+		Amplitude encodes a vector X
+		Input:
+			circuit (qiskit QuantumCircuit) - the circuit to perform the amplitude encoding on
+			registers (list) - List containing qiskit QuantumRegisters. The first should be the register to appy the encoding to
+								The final should be the classical register
+			X (numpy array) - The vector to amplitude encode into the quantum state
+			inverse (boolean) - If put to True, the inverse amplitude encoding circuit will be added to the inputed circuit
+		Output:
+			circuit (qiskit QuantumCircuit) - the circuit to perform the amplitude encoding on
+			registers (list) - List containing qiskit QuantumRegisters. 
+								The first is the register with an applied encoding
+								The final is the classical register
+								The next to final register is added by this class and is the ancilla register 
+								used for the multi-controlled gates
+		"""
+		amplitude_list, ancilla_register = self.make_amplitude_list(X)
+		n = len(registers[0])
+		encoded_circuit=qk.QuantumCircuit()
+		for register in registers:
+			encoded_circuit.add_register(register)
+		if self.usage is None:
+			encoded_circuit.add_register(ancilla_register)
+			circuit.add_register(ancilla_register)
+			registers.insert(-1,ancilla_register)
+		for i in range(self.n_qubits):
+			if len(amplitude_list) > 2:
+				amplitude_list,encoded_circuit,registers = self.iterate(amplitude_list,encoded_circuit,registers)
+			else:
+				amp1 = amplitude_list[1][1]
+				amp0 = amplitude_list[0][1]
+				if amp0 == 0 and amp1 == 0:
+					continue
+				elif amp1 == 0:
+					encoded_circuit.ry(0,registers[0][0])
+				elif amp0 == 0:
+					encoded_circuit.ry(-np.pi,registers[0][0])
+				if amp0 != 0:
+					encoded_circuit.ry(-2*np.arctan(amp1/amp0),registers[0][0])
+		if not inverse:
+			encoded_circuit = encoded_circuit.inverse()
+		circuit += encoded_circuit
+		self.usage = True
+		return(circuit,registers)			
 				
-				
+def squared_inner_product(x,y,circuit,registers,shots=1000):
+	"""
+	Calculates the squared inner product of two arbitrary vectors.
+	Input:
+		x (numpy array) - The first vector
+		y (numpy array) - The second vector
+		circuit (qiskit QuantumCircuit) - The circuit to calculate the inner product with
+		registers (list) - List containing the amplitude register as first index, while the last
+							index should be the classical register
+		shots (int) - How many times to measure the circuit when calculating the squared inner product
+	Output:
+		inner_product (float) - An estimate of the squared inner product of x and y.
+	"""
+	encoder= AmplitudeEncoder()
+	ancilla_register = qk.QuantumRegister(1)
+	circuit.add_register(ancilla_register)
+	circuit,registers = encoder(circuit,registers,x)
+	circuit,registers = encoder(circuit,registers,y,inverse=True)
+	for i in range(len(registers[0])):
+		circuit.x(registers[0][i])
+	circuit.mcrx(np.pi,[registers[0][i] for i in range(len(registers[0]))],ancilla_register[0])
+	circuit.measure(ancilla_register,registers[-1])
+	job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=shots)
+	result = job.result().get_counts(circuit)
+	inner_product = 0
+	for key,value in result.items():
+		if key == '1':
+			inner_product += value
+	inner_product /= shots
+	return(inner_product)
 
 
 
