@@ -813,8 +813,8 @@ def squared_inner_product(x,y,circuit,registers,shots=1000):
 		x (numpy array) - The first vector
 		y (numpy array) - The second vector
 		circuit (qiskit QuantumCircuit) - The circuit to calculate the inner product with
-		registers (list) - List containing the amplitude register as first index, while the last
-							index should be the classical register
+		registers (list) - List containing the amplitude register as first element, while the last
+							element should be a classical register with one bit
 		shots (int) - How many times to measure the circuit when calculating the squared inner product
 	Output:
 		inner_product (float) - An estimate of the squared inner product of x and y.
