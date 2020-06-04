@@ -3,6 +3,44 @@ import sys
 sys.path.append('../')
 from utils import *
 
+
+class Linear:
+	def __init__(self,n_inputs=None,n_outputs=None,bias=True,shots=500):
+		self.n_inputs = n_inputs
+		self.n_outputs = n_outputs
+		self.w = np.random.randn(n_outputs,(n_inputs + 1) if bias else n_inputs)
+		self.shots = shots
+		self.bias = bias
+		self.w_size = self.n_outputs*((n_inputs + 1) if bias else n_inputs)
+
+	def set_weights(self,w,w_idx):
+		n_inputs = (self.n_inputs + 1) if self.bias else self.n_inputs
+		self.w = w[w_idx:(w_idx+self.n_outputs*n_inputs)].reshape(self.n_outputs,n_inputs)
+		w_idx += self.n_outputs*n_inputs
+		return(w_idx)
+
+	def __call__(self,x):
+		out = np.zeros(self.n_outputs)
+		self.inputs = x
+		if self.bias:
+			x_i = np.zeros(x.shape[1] + 1)
+			x_i[0] = 1/np.sqrt(2)
+			x_i[1:] = x[i,:]/((np.sqrt(np.sum(x[i,:]**2))*np.sqrt(2))+self.eps)
+		else:
+			x_i = x[i,:]
+		for node in range(self.w.shape[0]):
+			n_qubits = int(np.ceil(np.log2(x_i.shape[0])))
+			amplitude_register = qk.QuantumRegister(n_qubits)
+			classical_register = qk.ClassicalRegister(1)
+			circuit = qk.QuantumCircuit(amplitude_register,classical_register)
+			registers = [amplitude_register,classical_register]
+			measurement = squared_inner_product(x_i,self.w[node,:])
+			out[node] = measurement
+		self.activation = out
+		return(out)
+
+
+
 class RNN:
 	def __init__(self,n_inputs=None,n_hidden=None,bias=True,shots=500,eps=1e-8):
 		self.wx = np.random.randn(n_hidden,(n_inputs + 1) if bias else n_inputs)+0.1
@@ -45,68 +83,17 @@ class RNN:
 				wh = self.wh[i,:]
 				w = np.concatenate((wx,wh))
 				n_qubits = int(np.ceil(np.log2(xh.shape[0])))
-				encoder = AmplitudeEncoder(xh)
-				qc,qb,qa,cb = encoder.encode()
-				encoder.make_amplitude_list(w)
-				qc,qb,qa,cb = encoder.encode(qc,qb,qa,cb,inverse=False)
-				ancilla = qk.QuantumRegister(1)
-				qc.add_register(ancilla)
-				qc.x([qb[i] for i in range(n_qubits)])
-				qc.mcrx(np.pi,[qb[i] for i in range(n_qubits)],ancilla[0])		
-				qc.measure(ancilla,cb)
-				job = qk.execute(qc, backend = qk.Aer.get_backend('qasm_simulator'), shots=self.shots)
-				result = job.result().get_counts(qc)
-				measurement = 0
-				for key,value in result.items():
-					if key == '1':
-						measurement += value
-				measurement /= self.shots
+				amplitude_register = qk.QuantumRegister(n_qubits)
+				classical_register = qk.ClassicalRegister(1)
+				circuit = qk.QuantumCircuit(amplitude_register,classical_register)
+				registers = [amplitude_register,classical_register]
+				measurement = squared_inner_product(xh,w,circuit,registers,shots=self.shots)
 				h_temp[node] = measurement
 			h[i,:] = h_temp
 			h_0 = h_temp
 		return(h)
 
-
-class Linear:
-	def __init__(self,n_inputs=None,n_outputs=None,bias=True,shots=500):
-		self.n_inputs = n_inputs
-		self.n_outputs = n_outputs
-		self.w = np.random.randn(n_outputs,(n_inputs + 1) if bias else n_inputs)
-		self.shots = shots
-		self.bias = bias
-		self.w_size = self.n_outputs*((n_inputs + 1) if bias else n_inputs)
-
-	def set_weights(self,w,w_idx):
-		n_inputs = (self.n_inputs + 1) if self.bias else self.n_inputs
-		self.w = w[w_idx:(w_idx+self.n_outputs*n_inputs)].reshape(self.n_outputs,n_inputs)
-		w_idx += self.n_outputs*n_inputs
-		return(w_idx)
-
-	def __call__(self,x):
-		out = np.zeros(self.n_outputs)
-		self.inputs = x
-		for node in range(self.w.shape[0]):
-			n_qubits = int(np.ceil(np.log2(x.shape[0])))
-			encoder = QuantumAmplitudeEncoding(x,intercept=self.bias)
-			qc,qb,qa,cb = encoder.encode()
-			encoder.make_amplitude_list(self.w[node,:])
-			qc,qb,qa,cb = encoder.encode(qc,qb,qa,cb,inverse=False)
-			ancilla = qk.QuantumRegister(1)
-			qc.add_register(ancilla)
-			qc.x([qb[i] for i in range(n_qubits)])
-			qc.mcrx(np.pi,[qb[i] for i in range(n_qubits)],ancilla[0])		
-			qc.measure(ancilla,cb)
-			job = qk.execute(qc, backend = qk.Aer.get_backend('qasm_simulator'), shots=self.shots)
-			result = job.result().get_counts(qc)
-			measurement = 0
-			for key,value in result.items():
-				if key == '1':
-					measurement += value
-			measurement /= self.shots
-			out[node] = measurement
-		self.activation = out
-		return(out)
-
+"""
 class LinearParallel:
 	def __init__(self,n_inputs=None,n_outputs=None,bias=True,shots=10000):
 		self.n_inputs = n_inputs
@@ -179,5 +166,5 @@ class LinearParallel:
 			out = out/self.shots
 		self.activation = out
 		return(out)
-
+"""
 
