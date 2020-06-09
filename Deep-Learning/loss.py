@@ -16,3 +16,12 @@ class cross_entropy:
 	def __call__(self,y_pred,y):
 		return(log_loss(y,y_pred))
 
+class rayleigh_quotient:
+	def __init__(self,H):
+		self.H = H
+
+	def __call__(self,x,*args):
+		H = self.H
+		x -= 1
+		x = x.reshape(x.flatten().shape[0],1)
+		return((x.T@H@x/(x.T@x)).flatten()[0])

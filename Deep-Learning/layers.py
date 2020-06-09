@@ -94,8 +94,8 @@ class RNN:
 			h_0 = h_temp
 		return(h)
 
-class AnsatzLayer:
-	def __init__(self,n_inputs=None,n_outputs=None,n_weights=None,ansatz=None,shots=500):
+class AnsatzLinear:
+	def __init__(self,n_inputs=None,n_outputs=None,n_weights=None,ansatz=None,shots=1000):
 		self.shots = shots
 		self.n_inputs = n_inputs
 		self.n_qubits = int(np.ceil(np.log2(n_inputs)))
@@ -133,7 +133,44 @@ class AnsatzLayer:
 			out /= self.shots
 			output[i] = out
 		return(output)
-			
+
+class AnsatzRNN:
+	def __init__(self,n_hidden=None,n_wx=None,n_wh=None,ansatz=None,shots=1000):
+		self.shots = shots
+		self.n_hidden = n_hidden
+		self.wx = np.zeros(n_hidden,n_wx)
+		self.wh = np.zeros(n_hidden,n_wh)
+		self.n_w
+		self.n_weights = n_wx + n_wh
+		self.ansatz=ansatz
+		self.w_size = n_hidden*n_wx + n_hidden*n_wh
+		self.shots=shots
+
+	
+	def set_weights(self,w,w_idx):
+		self.wx = w[w_idx:(w_idx+self.n_hidden*self.n_wx)].reshape(self.n_hidden,self.n_wx)
+		w_idx += self.n_hidden*self.n_wx
+		self.wh = w[w_idx:(w_idx+self.n_hidden*self.n_wh)].reshape(self.n_hidden,self.n_wh)
+		w_idx += self.n_hidden*self.n_wh
+		return(w_idx)
+
+	def __call__(self,x,h_0):
+		timesteps = x.shape[0]
+		h = np.zeros((timesteps,h_0.shape[0]))
+		for t in range(x.shape[0]):
+			x_t = x[t,:]
+			x_layer = AnsatzLinear(x_t.shape[0],self.n_hidden,self.n_wx)
+			x_layer.w = self.wx
+			h_layer = AnsatzLinear(h_0.shape[0],self.n_hidden,self.n_wh)
+			h_layer.w = self.wh
+			out1 = x_layer(x_t)
+			out2 = h_layer(h_0)
+			h_temp = out1 + out2
+			h[t,:] = h_temp
+			h_0 = h_temp
+		return(h)
+
+
 
 """
 class LinearParallel:

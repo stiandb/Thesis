@@ -338,30 +338,51 @@ def y_rotation_ansatz(theta,circuit,registers):
 		circuit.cx(registers[0][i],registers[0][i+1])
 	return(circuit,registers)
 
+class EulerRotationAnsatz:
+	"""Euler rotation ansatz with depth d and n qubits. Requires 3dn parameters"""
+	def __init__(self,entangler):
+		"""
+		Input:
+			entangler (callable) - accepts parameters (circuit,registers) and entangles the first register
+		"""
+		self.entangler = entangler
+	def __call__(self,theta,circuit,registers):
+		"""
+		Input:
+			theta (numpy array) - 1D array, which should contain 3nd elements
+			circuit (qiskit quantum circuit instance) - quantum circuit
+			registers (list) - list containing the ansatz register as first element
+		Output:
+			circuit (qiskit quantum circuit instance) - circuit with applied ansatz
+			registers (list) - the corresponding list
+		"""
+		n = len(registers[0])
+		D = int(theta.shape[0]/(3*n))
+		i = 0
+		for d in range(D):
+			for q in range(n):
+				circuit.rz(theta[i],registers[0][q])
+				circuit.rx(theta[i+1],registers[0][q])
+				circuit.rz(theta[i+2],registers[0][q])
+				i+=3
+			circuit,registers = self.entangler(circuit,registers)
+		return(circuit,registers)
 
-def euler_rotation_ansatz(theta,circuit,registers):
+def linear_entangler(circuit,registers):
 	"""
-	Euler rotation ansatz with depth d and n qubits. Requires 3dn parameters
+	Entangles qubit i with qubit i+1 for all n qubits in the first element of registers
 	Input:
-		theta (numpy array) - 1D array, which should contain 3nd elements
 		circuit (qiskit quantum circuit instance) - quantum circuit
 		registers (list) - list containing the ansatz register as first element
 	Output:
-		circuit (qiskit quantum circuit instance) - circuit with applied ansatz
-		registers (list) - the corresponding list
+		circuit (qiskit quantum circuit instance) - quantum circuit
+		registers (list) - list containing the ansatz register as first element
 	"""
 	n = len(registers[0])
-	D = int(theta.shape[0]/(3*n))
-	i = 0
-	for d in range(D):
-		for q in range(n):
-			circuit.rz(theta[i],registers[0][q])
-			circuit.rx(theta[i+1],registers[0][q])
-			circuit.rz(theta[i+2],registers[0][q])
-			i+=3
-			for j in range(n-1):
-				circuit.cx(registers[0][j],registers[0][j+1])
+	for j in range(n-1):
+		circuit.cx(registers[0][j],registers[0][j+1])
 	return(circuit,registers)
+
 
 class UCCSD:
 	def __init__(self,n_fermi,n_spin_orbitals,t,dt=1,T=1,singles=True,doubles=True):
@@ -786,6 +807,12 @@ class AmplitudeEncoder:
 			encoded_circuit.add_register(ancilla_register)
 			circuit.add_register(ancilla_register)
 			registers.insert(-1,ancilla_register)
+		if np.all(X == X[0]):
+			for i in range(n):
+				encoded_circuit.h(registers[0][i])
+			circuit += encoded_circuit
+			self.usage = True
+			return(circuit,registers)
 		for i in range(self.n_qubits):
 			if len(amplitude_list) > 2:
 				amplitude_list,encoded_circuit,registers = self.iterate(amplitude_list,encoded_circuit,registers)
