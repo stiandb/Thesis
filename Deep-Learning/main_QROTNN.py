@@ -22,7 +22,7 @@ print('test dataset shape', X_test.shape)
 
 l1 = X_train.shape[1]
 l2 = 3
-n = 20
+n = 5
 X_train = X_train[:n,:]
 y_train = y_train[:n]
 layers = [AnsatzLinear(l1,l2,int(np.ceil(np.log2(l1))),y_rotation_ansatz),AnsatzLinear(l2,3,int(np.ceil(np.log2(l2))),y_rotation_ansatz)]

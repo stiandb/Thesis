@@ -8,17 +8,16 @@ from sklearn.datasets import load_iris
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split
 from hamiltonian import *
-np.random.seed(5)
+np.random.seed(7)
 
 y_train = np.zeros(2)
-H, Eref = hamiltonian(2,3,1,1)
+H, Eref = hamiltonian(1,2,1,1)
 eigvals, eigvecs = np.linalg.eigh(H)
 print(eigvals)
 loss_fn = rayleigh_quotient(H)
 x = np.ones(8).reshape(1,8)
-euler_rotation_ansatz = EulerRotationAnsatz(linear_entangler)
-l1 = AnsatzLinear(x.shape[1],8,18,ansatz=euler_rotation_ansatz)
-l2 = AnsatzLinear(8,3,18,ansatz=euler_rotation_ansatz)
+l1 = AnsatzLinear(x.shape[1],8,3,ansatz=y_rotation_ansatz)
+l2 = AnsatzLinear(8,2,3,ansatz=y_rotation_ansatz)
 layers = [l1,l2]
 model = QDNN(layers,loss_fn)
 
