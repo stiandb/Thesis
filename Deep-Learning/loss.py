@@ -23,4 +23,5 @@ class rayleigh_quotient:
 	def __call__(self,x,*args):
 		H = self.H
 		x = x.T
+		print(x)
 		return((x.T@H@x/(x.T@x)).flatten()[0])

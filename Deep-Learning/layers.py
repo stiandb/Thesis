@@ -2,6 +2,7 @@ import numpy as np
 import sys
 sys.path.append('../')
 from utils import *
+from dl_utils import *
 
 
 class Linear:
@@ -122,7 +123,7 @@ class AnsatzLinear:
 			encoder = AmplitudeEncoder()
 			circuit, registers = encoder(circuit,registers,x)
 			circuit,registers = self.ansatz(self.w[i,:],circuit,registers)
-			circuit.mcrx(np.pi,[registers[0][i] for i in range(len(registers[0]))],registers[1][0])
+			circuit.mcrx(np.pi,[registers[0][j] for j in range(len(registers[0]))],registers[1][0])
 			circuit.measure(registers[1],registers[-1])
 			job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=self.shots)
 			result = job.result().get_counts(circuit)
@@ -170,7 +171,52 @@ class AnsatzRNN:
 			h_0 = h_temp
 		return(h)
 
+class RotationLinear:
+	def __init__(self,n_inputs=None,n_outputs=None,n_weights=None,rotation=None,n_parallel=1,shots=1000):
+		self.shots = shots
+		self.n_inputs = n_inputs
+		self.n_qubits = int(np.ceil(np.log2(n_inputs)))
+		self.n_outputs = n_outputs
+		self.n_weights = n_weights
+		self.w = np.random.randn(n_outputs,n_weights)
+		self.rotation=rotation
+		self.w_size = n_outputs*n_weights
+		self.shots = shots
+		self.n_parallel = n_parallel
 
+	def set_weights(self,w,w_idx):
+		self.w = w[w_idx:(w_idx+self.n_outputs*self.n_weights)].reshape(self.n_outputs,self.n_weights)
+		w_idx += self.n_outputs*self.n_weights
+		return(w_idx)
+
+	def __call__(self,x):
+		output = np.zeros(self.n_outputs)
+		for i in range(0,self.n_outputs,self.n_parallel):
+			if (self.n_outputs - i) < self.n_parallel:
+				n_parallel = self.n_outputs - i
+			else:
+				n_parallel = self.n_parallel
+			amplitude_register = qk.QuantumRegister(self.n_qubits)
+			classical_register = qk.ClassicalRegister(n_parallel)
+			ancilla_register = qk.QuantumRegister(n_parallel)
+			circuit = qk.QuantumCircuit(amplitude_register,ancilla_register,classical_register)
+			registers = [amplitude_register,ancilla_register,classical_register]
+			encoder = AmplitudeEncoder()
+			circuit, registers = encoder(circuit,registers,x)
+			for j in range(n_parallel):
+				circuit,registers = self.rotation(self.w[i+j,:],j,circuit,registers)
+			circuit.measure(registers[1],registers[-1])
+			job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=self.shots)
+			result = job.result().get_counts(circuit)
+			out = np.zeros(n_parallel)
+			for key,value in result.items():
+				key_ = key[::-1]
+				for k,qubit in enumerate(key_):
+					if qubit == '1':
+						out[k] += value
+			out /= self.shots
+			output[i:(i+n_parallel)] = out
+		return(output)
 
 """
 class LinearParallel:
