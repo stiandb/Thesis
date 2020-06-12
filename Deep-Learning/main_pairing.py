@@ -25,13 +25,13 @@ np.save('model_params.npy',model.fit(X=x,y=y_train,method='Powell'))"""
 
 
 y_train = np.zeros(2)
-H, Eref = hamiltonian(1,2,1,1)
+H, Eref = hamiltonian(2,3,1,1)
 eigvals, eigvecs = np.linalg.eigh(H)
 print(eigvals)
 loss_fn = rayleigh_quotient(H)
 x = np.ones(8).reshape(1,8)
 l1 = RotationLinear(x.shape[1],8,3,rotation=y_rotation,n_parallel=8)
-l2 = RotationLinear(8,2,3,rotation=y_rotation,n_parallel=2)
+l2 = RotationLinear(8,3,3,rotation=y_rotation,n_parallel=3)
 layers = [l1,l2]
 model = QDNN(layers,loss_fn)
 

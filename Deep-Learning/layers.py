@@ -160,9 +160,9 @@ class AnsatzRNN:
 		h = np.zeros((timesteps,h_0.shape[0]))
 		for t in range(x.shape[0]):
 			x_t = x[t,:]
-			x_layer = AnsatzLinear(x_t.shape[0],self.n_hidden,self.n_wx)
+			x_layer = AnsatzLinear(x_t.shape[0],self.n_hidden,self.n_wx,ansatz=self.ansatz)
 			x_layer.w = self.wx
-			h_layer = AnsatzLinear(h_0.shape[0],self.n_hidden,self.n_wh)
+			h_layer = AnsatzLinear(h_0.shape[0],self.n_hidden,self.n_wh,ansatz=self.ansatz)
 			h_layer.w = self.wh
 			out1 = x_layer(x_t)
 			out2 = h_layer(h_0)
@@ -218,78 +218,41 @@ class RotationLinear:
 			output[i:(i+n_parallel)] = out
 		return(output)
 
-"""
-class LinearParallel:
-	def __init__(self,n_inputs=None,n_outputs=None,bias=True,shots=10000):
-		self.n_inputs = n_inputs
-		self.n_outputs = n_outputs
-		self.w = np.random.randn(n_outputs,(n_inputs + 1) if bias else n_inputs)
+class RotationRNN:
+	def __init__(self,n_hidden=None,n_wx=None,n_wh=None,rotation=None,n_parallel_x=1,n_parallel_h=1,shots=1000):
 		self.shots = shots
-		self.bias = bias
-		self.w_size = self.n_outputs*((n_inputs + 1) if bias else n_inputs)
+		self.n_hidden = n_hidden
+		self.wx = np.zeros(n_hidden,n_wx)
+		self.wh = np.zeros(n_hidden,n_wh)
+		self.n_w
+		self.n_weights = n_wx + n_wh
+		self.rotation=rotation
+		self.w_size = n_hidden*n_wx + n_hidden*n_wh
+		self.shots=shots
+		self.n_parallel_x = n_parallel_x
+		self.n_parallel_h = n_parallel_h
 
+	
 	def set_weights(self,w,w_idx):
-		n_inputs = (self.n_inputs + 1) if self.bias else self.n_inputs
-		self.w = w[w_idx:(w_idx+self.n_outputs*n_inputs)].reshape(self.n_outputs,n_inputs)
-		w_idx += self.n_outputs*n_inputs
+		self.wx = w[w_idx:(w_idx+self.n_hidden*self.n_wx)].reshape(self.n_hidden,self.n_wx)
+		w_idx += self.n_hidden*self.n_wx
+		self.wh = w[w_idx:(w_idx+self.n_hidden*self.n_wh)].reshape(self.n_hidden,self.n_wh)
+		w_idx += self.n_hidden*self.n_wh
 		return(w_idx)
 
-	def __call__(self,x):
-		out = np.zeros(self.n_outputs)
-		self.inputs = x
-		n_qubits = int(np.ceil(np.log2(self.w.shape[0]*self.w.shape[1])))
-
-		n_input_qubits = int(np.ceil(np.log2(x.shape[0]+(1 if self.bias else 0))))
-		if 2**(n_qubits - n_input_qubits) < self.n_outputs:
-			layer = Linear(n_inputs=self.n_inputs,n_outputs=self.n_outputs)
-			layer.w = self.w 
-			out = layer(x)
-		else:
-			encoder = QuantumAmplitudeEncoding(self.w.flatten(),n_classical=self.n_outputs)
-			qc,qb,qa,cb = encoder.encode()
-			ancilla1 = qk.QuantumRegister(self.n_outputs)
-			ancilla2 = qk.QuantumRegister(self.n_outputs)
-			qc.add_register(ancilla1)
-			qc.add_register(ancilla2)
-			enc = QuantumAmplitudeEncoding()
-			enc.n_qubits = n_qubits - n_input_qubits
-
-			binary_list = enc.convert_binary(range(2**(n_qubits-n_input_qubits)))
-			binary_list = binary_list[:self.n_outputs]
-			
-			for idx,binary_str in enumerate(binary_list):
-				for j,bit in enumerate(binary_str):
-					if bit == '0':
-						qc.x(qb[j])
-				qc.mcrx(np.pi,[qb[i] for i in range(n_qubits-n_input_qubits)],ancilla1[idx])
-				for j, bit in enumerate(binary_str):
-					if bit == '0':
-						qc.x(qb[j])
-
-			encoder.make_amplitude_list(self.inputs,intercept=self.bias)
-			for i in range(n_qubits-n_input_qubits):
-				qc.h(qb[i])
-
-			qc,qb,qa,cb = encoder.encode(qc,qb,qa,cb,inverse=False)
-			qc.x([qb[i] for i in range(n_qubits)])
-			qc.x([ancilla1[i] for i in range(self.n_outputs)])
-			for j in range(self.n_outputs):
-				qc.x(ancilla1[j])
-				qubit_list = [qb[i] for i in range(n_qubits)]
-				qubit_list.extend([ancilla1[i] for i in range(self.n_outputs)])
-				qc.mcrx(np.pi,qubit_list,ancilla2[j])
-				qc.x(ancilla1[j])
-			qc.measure(ancilla2,cb)
-			job = qk.execute(qc, backend = qk.Aer.get_backend('qasm_simulator'), shots=self.shots)
-			result = job.result().get_counts(qc)
-			
-			for key,value in result.items():
-				key1 = key[::-1]
-				for node,bit in enumerate(key1):
-					if bit == '1':
-						out[node] += value
-			out = out/self.shots
-		self.activation = out
-		return(out)
-"""
+	def __call__(self,x,h_0):
+		timesteps = x.shape[0]
+		h = np.zeros((timesteps,h_0.shape[0]))
+		for t in range(x.shape[0]):
+			x_t = x[t,:]
+			x_layer = RotationLinear(x_t.shape[0],self.n_hidden,self.n_wx,rotation=self.rotation,n_parallel=self.n_parallel_x)
+			x_layer.w = self.wx
+			h_layer = RotationLinear(h_0.shape[0],self.n_hidden,self.n_wh,rotation=self.rotation,n_parallel=self.n_parallel_h)
+			h_layer.w = self.wh
+			out1 = x_layer(x_t)
+			out2 = h_layer(h_0)
+			h_temp = out1 + out2
+			h[t,:] = h_temp
+			h_0 = h_temp
+		return(h)
 
