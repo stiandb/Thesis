@@ -36,3 +36,20 @@ layers = [l1,l2]
 model = QDNN(layers,loss_fn)
 
 np.save('model_params.npy',model.fit(X=x,y=y_train,method='Powell'))
+
+"""
+y_train = np.zeros(2)
+H, Eref = hamiltonian(2,3,1,1)
+eigvals, eigvecs = np.linalg.eigh(H)
+print(eigvals)
+dt = 1
+loss_fn = eigenvector_ode(H,dt)
+
+x = np.ones(10*8).reshape(1,10,8)
+l1 = RotationRNN(3,3,2,rotation=y_rotation)
+
+layers = [l1]
+model = QDNN(layers,loss_fn)
+
+np.save('model_params.npy',model.fit(X=x,y=y_train,method='Powell'))
+"""

@@ -41,7 +41,7 @@ class QDNN(Utils):
 		return(cost)
 
 	def predict(self,X):
-		y_pred = np.zeros((X.shape[0],self.layers[-1].n_outputs))
+		y_pred = []
 		for i in range(X.shape[0]):
 			x = X[i,:]
 			x = x/np.sqrt(np.sum(x**2))
@@ -51,8 +51,8 @@ class QDNN(Utils):
 				forward = np.array([1/3 for i in range(self.layers[-1].n_outputs)])
 			else:
 				forward /= np.sum(forward)
-			y_pred[i,:] = forward
-
+			y_pred.append(forward)
+		y_pred = np.array(y_pred)
 		return(y_pred)
 
 

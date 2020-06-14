@@ -20,7 +20,7 @@ def euler_rotation(weights,ancilla,circuit,registers):
 	n = len(registers[0])
 	for q in range(n):
 		circuit.crz(weights[i],registers[0][q],registers[1][ancilla])
-		circuit.crx(weights[i+1],registers[0][q],registers[1][ancilla])
+		circuit.mcrx(weights[i+1],[registers[0][q]],registers[1][ancilla])
 		circuit.crz(weights[i+2],registers[0][q],registers[1][ancilla])
 		i+=3
 	return(circuit,registers)

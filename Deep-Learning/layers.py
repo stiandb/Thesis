@@ -15,7 +15,7 @@ class Linear:
 		self.w_size = self.n_outputs*((n_inputs + 1) if bias else n_inputs)
 		self.eps = eps
 
-	def set_weights(self,w,w_idx):
+	def set_weights(self,w,w_idx=0):
 		n_inputs = (self.n_inputs + 1) if self.bias else self.n_inputs
 		self.w = w[w_idx:(w_idx+self.n_outputs*n_inputs)].reshape(self.n_outputs,n_inputs)
 		w_idx += self.n_outputs*n_inputs
@@ -55,7 +55,7 @@ class RNN:
 		self.w_size = n_hidden*((n_inputs + 1) if bias else n_inputs) + n_hidden*((n_hidden + 1) if bias else n_hidden)
 		self.n_outputs = self.n_hidden
 
-	def set_weights(self,w,w_idx):
+	def set_weights(self,w,w_idx=0):
 		n_inputs = (self.n_inputs + 1) if self.bias else self.n_inputs
 		self.wx = w[w_idx:(w_idx+self.n_hidden*n_inputs)].reshape(self.n_hidden,n_inputs)
 		w_idx += self.n_hidden*n_inputs
@@ -107,7 +107,7 @@ class AnsatzLinear:
 		self.w_size = n_outputs*n_weights
 		self.shots=shots
 
-	def set_weights(self,w,w_idx):
+	def set_weights(self,w,w_idx=0):
 		self.w = w[w_idx:(w_idx+self.n_outputs*self.n_weights)].reshape(self.n_outputs,self.n_weights)
 		w_idx += self.n_outputs*self.n_weights
 		return(w_idx)
@@ -139,8 +139,8 @@ class AnsatzRNN:
 	def __init__(self,n_hidden=None,n_wx=None,n_wh=None,ansatz=None,shots=1000):
 		self.shots = shots
 		self.n_hidden = n_hidden
-		self.wx = np.zeros(n_hidden,n_wx)
-		self.wh = np.zeros(n_hidden,n_wh)
+		self.wx = np.random.randn(n_hidden,n_wx)
+		self.wh = np.random.randn(n_hidden,n_wh)
 		self.n_w
 		self.n_weights = n_wx + n_wh
 		self.ansatz=ansatz
@@ -148,7 +148,7 @@ class AnsatzRNN:
 		self.shots=shots
 
 	
-	def set_weights(self,w,w_idx):
+	def set_weights(self,w,w_idx=0):
 		self.wx = w[w_idx:(w_idx+self.n_hidden*self.n_wx)].reshape(self.n_hidden,self.n_wx)
 		w_idx += self.n_hidden*self.n_wx
 		self.wh = w[w_idx:(w_idx+self.n_hidden*self.n_wh)].reshape(self.n_hidden,self.n_wh)
@@ -184,7 +184,7 @@ class RotationLinear:
 		self.shots = shots
 		self.n_parallel = n_parallel
 
-	def set_weights(self,w,w_idx):
+	def set_weights(self,w,w_idx=0):
 		self.w = w[w_idx:(w_idx+self.n_outputs*self.n_weights)].reshape(self.n_outputs,self.n_weights)
 		w_idx += self.n_outputs*self.n_weights
 		return(w_idx)
@@ -222,9 +222,11 @@ class RotationRNN:
 	def __init__(self,n_hidden=None,n_wx=None,n_wh=None,rotation=None,n_parallel_x=1,n_parallel_h=1,shots=1000):
 		self.shots = shots
 		self.n_hidden = n_hidden
-		self.wx = np.zeros(n_hidden,n_wx)
-		self.wh = np.zeros(n_hidden,n_wh)
-		self.n_w
+		self.n_outputs = n_hidden
+		self.wx = np.zeros((n_hidden,n_wx))
+		self.wh = np.zeros((n_hidden,n_wh))
+		self.n_wx = n_wx
+		self.n_wh = n_wh
 		self.n_weights = n_wx + n_wh
 		self.rotation=rotation
 		self.w_size = n_hidden*n_wx + n_hidden*n_wh
@@ -233,14 +235,16 @@ class RotationRNN:
 		self.n_parallel_h = n_parallel_h
 
 	
-	def set_weights(self,w,w_idx):
+	def set_weights(self,w,w_idx=0):
 		self.wx = w[w_idx:(w_idx+self.n_hidden*self.n_wx)].reshape(self.n_hidden,self.n_wx)
 		w_idx += self.n_hidden*self.n_wx
 		self.wh = w[w_idx:(w_idx+self.n_hidden*self.n_wh)].reshape(self.n_hidden,self.n_wh)
 		w_idx += self.n_hidden*self.n_wh
 		return(w_idx)
 
-	def __call__(self,x,h_0):
+	def __call__(self,x,h_0 = None):
+		if h_0 is None:
+			h_0 = np.ones(self.n_hidden)
 		timesteps = x.shape[0]
 		h = np.zeros((timesteps,h_0.shape[0]))
 		for t in range(x.shape[0]):
@@ -256,3 +260,67 @@ class RotationRNN:
 			h_0 = h_temp
 		return(h)
 
+class AnsatzRotationLinear:
+	def __init__(self,n_inputs=None,n_outputs=None,n_weights_a=None,n_weights_r=None,ansatz=None,rotation=None,n_parallel = 1,shots=1000):
+		self.shots = shots
+		self.n_inputs = n_inputs
+		self.n_qubits = int(np.ceil(np.log2(n_inputs)))
+		self.n_outputs = n_outputs
+		self.w_r = np.random.randn(n_outputs,n_weights_r)
+		self.n_parallel = n_parallel
+		self.n_weights_a = n_weights_a
+		self.n_weights_r = n_weights_r
+		if n_parallel > 1:
+			self.w_a = np.random.randn(1,n_weights_a)
+			self.w_size = n_outputs*n_weights_r + n_weights_a
+		else:
+			self.w_a = np.random.randn(n_outputs,n_weights_a)
+			self.w_size = n_outputs*n_weights_a + n_weights_r*n_outputs
+		self.ansatz=ansatz
+		self.rotation=rotation
+		self.shots=shots
+
+	def set_weights(self,w,w_idx=0):
+		if self.n_parallel > 1:
+			self.w_a = w[w_idx:(w_idx+self.n_weights_a)].reshape(1,self.n_weights_a)
+			w_idx += self.n_weights_a
+		else:
+			self.w_a = w[w_idx:(w_idx+self.n_outputs*self.n_weights_a)].reshape(self.n_outputs,self.n_weights_a)
+			w_idx += self.n_outputs*self.n_weights_a
+		self.w_r = w[w_idx:(w_idx + self.n_outputs*self.n_weights_r)].reshape(self.n_outputs,self.n_weights_r)
+		w_idx += self.n_outputs*self.n_weights_r
+		return(w_idx)
+
+	def __call__(self,x):
+		output = np.zeros(self.n_outputs)
+		for i in range(0,self.n_outputs,self.n_parallel):
+			if (self.n_outputs - i) < self.n_parallel:
+				n_parallel = self.n_outputs - i
+			else:
+				n_parallel = self.n_parallel
+			amplitude_register = qk.QuantumRegister(self.n_qubits)
+			classical_register = qk.ClassicalRegister(n_parallel)
+			ancilla_register = qk.QuantumRegister(n_parallel)
+			circuit = qk.QuantumCircuit(amplitude_register,ancilla_register,classical_register)
+			registers = [amplitude_register,ancilla_register,classical_register]
+			encoder = AmplitudeEncoder()
+			circuit, registers = encoder(circuit,registers,x)
+			if self.n_parallel > 1:
+				circuit,registers = self.ansatz(self.w_a[0,:],circuit,registers)
+			else:
+				circuit,registers = self.ansatz(self.w_a[i,:],circuit,registers)
+
+			for j in range(n_parallel):
+				circuit,registers = self.rotation(self.w_r[i+j,:],j,circuit,registers)
+			circuit.measure(registers[1],registers[-1])
+			job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=self.shots)
+			result = job.result().get_counts(circuit)
+			out = np.zeros(n_parallel)
+			for key,value in result.items():
+				key_ = key[::-1]
+				for k,qubit in enumerate(key_):
+					if qubit == '1':
+						out[k] += value
+			out /= self.shots
+			output[i:(i+n_parallel)] = out
+		return(output)

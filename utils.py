@@ -332,6 +332,8 @@ def y_rotation_ansatz(theta,circuit,registers):
 		circuit (qiskit quantum circuit instance) - circuit with applied ansatz
 		registers (list) - the corresponding list
 	"""
+	if theta.shape[0] != len(registers[0]):
+		print('y_rotation_ansatz warning: Number of parameters does not match the number of qubits')
 	for qubit,param in enumerate(theta):
 		circuit.ry(param,registers[0][qubit])
 	for i in range(theta.shape[0]-1):
