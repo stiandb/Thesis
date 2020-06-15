@@ -46,24 +46,24 @@ class Linear:
 
 
 class RNN:
-	def __init__(self,n_inputs=None,n_hidden=None,bias=True,shots=500,eps=1e-8,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None):
-		self.wx = np.random.randn(n_hidden,(n_inputs + 1) if bias else n_inputs)+0.1
+	def __init__(self,n_predictors=None,n_hidden=None,bias=True,shots=500,eps=1e-8,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None):
+		self.wx = np.random.randn(n_hidden,(n_predictors + 1) if bias else n_predictors)+0.1
 		self.wh = np.random.randn(n_hidden,(n_hidden + 1) if bias else n_hidden)+0.1
 		self.shots = shots
 		self.bias = bias
 		self.eps = eps
 		self.n_hidden = n_hidden
-		self.n_inputs = n_inputs
-		self.w_size = n_hidden*((n_inputs + 1) if bias else n_inputs) + n_hidden*((n_hidden + 1) if bias else n_hidden)
+		self.n_predictors = n_predictors
+		self.w_size = n_hidden*((n_predictors + 1) if bias else n_predictors) + n_hidden*((n_hidden + 1) if bias else n_hidden)
 		self.n_outputs = self.n_hidden
 		self.seed_simulator = seed_simulator
 		self.backend=backend
 		self.noise_model=noise_model
 
 	def set_weights(self,w,w_idx=0):
-		n_inputs = (self.n_inputs + 1) if self.bias else self.n_inputs
-		self.wx = w[w_idx:(w_idx+self.n_hidden*n_inputs)].reshape(self.n_hidden,n_inputs)
-		w_idx += self.n_hidden*n_inputs
+		n_predictors = (self.n_predictors + 1) if self.bias else self.n_predictors
+		self.wx = w[w_idx:(w_idx+self.n_hidden*n_predictors)].reshape(self.n_hidden,n_predictors)
+		w_idx += self.n_hidden*n_predictors
 		n_hidden = (self.n_hidden + 1) if self.bias else self.n_hidden
 		self.wh = w[w_idx:(w_idx+self.n_hidden*n_hidden)].reshape(self.n_hidden,n_hidden)
 		w_idx += self.n_hidden*n_hidden
@@ -87,8 +87,8 @@ class RNN:
 				xh = np.concatenate((x_i,h_i))
 				h_temp = np.zeros(h_0.shape)
 				for node in range(h_0.shape[0]):
-					wx = self.wx[i,:]
-					wh = self.wh[i,:]
+					wx = self.wx[node,:]
+					wh = self.wh[node,:]
 					w = np.concatenate((wx,wh))
 					n_qubits = int(np.ceil(np.log2(xh.shape[0])))
 					amplitude_register = qk.QuantumRegister(n_qubits)
@@ -151,7 +151,8 @@ class AnsatzRNN:
 		self.n_hidden = n_hidden
 		self.wx = np.random.randn(n_hidden,n_wx)
 		self.wh = np.random.randn(n_hidden,n_wh)
-		self.n_w
+		self.n_wx = n_wx
+		self.n_wh = n_wh
 		self.n_weights = n_wx + n_wh
 		self.ansatz=ansatz
 		self.w_size = n_hidden*n_wx + n_hidden*n_wh
@@ -174,15 +175,17 @@ class AnsatzRNN:
 		for sample in range(x.shape[0]):
 			for t in range(x.shape[1]):
 				x_t = x[sample,t,:]
-				x_layer = AnsatzLinear(x_t.shape[0],self.n_hidden,self.n_wx,ansatz=self.ansatz,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
+				x_t = x_t.reshape(1,x_t.shape[0])
+				x_layer = AnsatzLinear(x_t.shape[1],self.n_hidden,self.n_wx,ansatz=self.ansatz,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
 				x_layer.w = self.wx
 				h_layer = AnsatzLinear(h_0.shape[0],self.n_hidden,self.n_wh,ansatz=self.ansatz,seed_simulator = self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
 				h_layer.w = self.wh
 				out1 = x_layer(x_t)
+				h_0 = h_0.reshape(1,h_0.shape[0])
 				out2 = h_layer(h_0)
 				h_temp = (out1 + out2)/2
-				h[sample,t,:] = h_temp
-				h_0 = h_temp
+				h[sample,t,:] = h_temp.flatten()
+				h_0 = h_temp.flatten()
 		return(h)
 
 class RotationLinear:
@@ -241,8 +244,8 @@ class RotationRNN:
 		self.shots = shots
 		self.n_hidden = n_hidden
 		self.n_outputs = n_hidden
-		self.wx = np.zeros((n_hidden,n_wx))
-		self.wh = np.zeros((n_hidden,n_wh))
+		self.wx = np.random.randn(n_hidden,n_wx)
+		self.wh = np.random.randn(n_hidden,n_wh)
 		self.n_wx = n_wx
 		self.n_wh = n_wh
 		self.n_weights = n_wx + n_wh
@@ -271,15 +274,16 @@ class RotationRNN:
 		for sample in range(x.shape[0]):
 			for t in range(x.shape[1]):
 				x_t = x[sample,t,:]
-				x_layer = RotationLinear(x_t.shape[0],self.n_hidden,self.n_wx,rotation=self.rotation,n_parallel=self.n_parallel_x,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
+				x_t = x_t.reshape(1,x_t.shape[0])
+				x_layer = RotationLinear(x_t.shape[1],self.n_hidden,self.n_wx,rotation=self.rotation,n_parallel=self.n_parallel_x,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
 				x_layer.w = self.wx
 				h_layer = RotationLinear(h_0.shape[0],self.n_hidden,self.n_wh,rotation=self.rotation,n_parallel=self.n_parallel_h,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
 				h_layer.w = self.wh
 				out1 = x_layer(x_t)
-				out2 = h_layer(h_0)
-				h_temp = out1 + out2
-				h[sample,t,:] = h_temp
-				h_0 = h_temp
+				out2 = h_layer(h_0.reshape(1,h_0.shape[0]))
+				h_temp = (out1 + out2)/2
+				h[sample,t,:] = h_temp.flatten()
+				h_0 = h_temp.flatten()
 		return(h)
 
 class AnsatzRotationLinear:
@@ -349,3 +353,78 @@ class AnsatzRotationLinear:
 				out /= self.shots
 				output[sample,i:(i+n_parallel)] = out
 		return(output)
+
+class AnsatzRotationRNN:
+	def __init__(self,n_hidden=None,n_wxa=None,n_wxr=None,n_wha=None,n_whr=None,rotation=None,ansatz=None,n_parallel_x=1,n_parallel_h=1,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None):
+		self.shots = shots
+		self.n_hidden = n_hidden
+		self.n_outputs = n_hidden
+		self.whr = np.random.randn(n_hidden,n_whr)
+		self.wxr = np.random.randn(n_hidden,n_wxr)
+		self.n_wxa = n_wxa
+		self.n_wha = n_wha
+		self.n_wxr = n_wxr
+		self.n_whr = n_whr
+		self.w_size = n_outputs*n_wxr + n_outputs*n_whr
+		if n_parallel_x > 1:
+			self.wxa = np.random.randn(1,n_wxa)
+			self.w_size += n_wxa
+		else:
+			self.wxa = np.random.randn(n_hidden,n_wxa)
+			self.w_size += n_outputs*n_wxa
+		if n_parallel_h > 1:
+			self.wha = np.random.randn(1,n_wha)
+			self.w_size += n_wha
+		else:
+			self.wha = np.random.randn(n_hidden,n_wha)
+			self.w_size += n_outputs*n_wha
+		self.rotation=rotation
+		self.shots=shots
+		self.n_parallel_x = n_parallel_x
+		self.n_parallel_h = n_parallel_h
+		self.seed_simulator = seed_simulator
+		self.backend=backend
+		self.noise_model = noise_model
+		self.ansatz=ansatz
+
+	
+	def set_weights(self,w,w_idx=0):
+		if self.n_parallel_x > 1:
+			self.wxa = w[w_idx:(w_idx+self.n_wxa)].reshape(1,self.n_wxa)
+			w_idx += self.n_wxa
+		else:
+			self.wxa = w[w_idx:(w_idx+self.n_outputs*self.n_wxa)].reshape(self.n_outputs,self.n_wxa)
+			w_idx += self.n_outputs*self.n_wxa
+		self.wxr = w[w_idx:(w_idx + self.n_outputs*self.n_wxr)].reshape(self.n_outputs,self.n_wxr)
+		w_idx += self.n_outputs*self.n_wxr
+		if self.n_parallel_h > 1:
+			self.wha = w[w_idx:(w_idx+self.n_wha)].reshape(1,self.n_wha)
+			w_idx += self.n_wha
+		else:
+			self.wha = w[w_idx:(w_idx+self.n_outputs*self.n_wha)].reshape(self.n_outputs,self.n_wha)
+			w_idx += self.n_outputs*self.n_wha
+		self.whr = w[w_idx:(w_idx + self.n_outputs*self.n_whr)].reshape(self.n_outputs,self.n_whr)
+		w_idx += self.n_outputs*self.n_whr
+		return(w_idx)
+
+	def __call__(self,x,h_0 = None):
+		if h_0 is None:
+			h_0 = np.ones(self.n_hidden)
+		timesteps = x.shape[1]
+		h = np.zeros((x.shape[0],timesteps,h_0.shape[0]))
+		for sample in range(x.shape[0]):
+			for t in range(x.shape[1]):
+				x_t = x[sample,t,:]
+				x_t = x_t.reshape(1,x_t.shape[0])
+				x_layer = AnsatzRotationLinear(x_t.shape[1],self.n_hidden,self.n_wx,rotation=self.rotation,ansatz=self.ansatz,n_parallel=self.n_parallel_x,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
+				x_layer.w_a = self.wxa
+				x_layer.w_r = self.wxr
+				h_layer = AnsatzRotationLinear(h_0.shape[0],self.n_hidden,self.n_wh,rotation=self.rotation,ansatz=self.ansatz,n_parallel=self.n_parallel_h,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
+				h_layer.w_a = self.wha
+				h_layer.w_r = self.whr
+				out1 = x_layer(x_t)
+				out2 = h_layer(h_0.reshape(1,h_0.shape[0]))
+				h_temp = (out1 + out2)/2
+				h[sample,t,:] = h_temp.flatten()
+				h_0 = h_temp.flatten()
+		return(h)

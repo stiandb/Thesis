@@ -62,8 +62,8 @@ n = 5
 X_train = X_train[:n,:]
 y_train = y_train[:n]
 y_rotation = YRotation(bias=True)
-layer1 = AnsatzRotationLinear(l1,l2,n_weights_a= int(np.ceil(np.log2(l1))),n_weights_r = int(np.ceil(np.log2(l1)))+1,rotation=y_rotation,ansatz=y_rotation_ansatz)
-layer2 = AnsatzRotationLinear(l2,3,n_weights_a= int(np.ceil(np.log2(l2))),n_weights_r = int(np.ceil(np.log2(l2)))+1,rotation=y_rotation,ansatz=y_rotation_ansatz)
+layer1 = AnsatzRotationLinear(l1,l2,n_weights_a= int(np.ceil(np.log2(l1))),n_weights_r = int(np.ceil(np.log2(l1)))+1,rotation=y_rotation,ansatz=y_rotation_ansatz,seed_simulator=42)
+layer2 = AnsatzRotationLinear(l2,3,n_weights_a= int(np.ceil(np.log2(l2))),n_weights_r = int(np.ceil(np.log2(l2)))+1,rotation=y_rotation,ansatz=y_rotation_ansatz,seed_simulator=42)
 layers = [layer1,layer2]
 loss_fn = cross_entropy()
 model = QDNN(layers,loss_fn)
