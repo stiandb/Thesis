@@ -416,10 +416,10 @@ class AnsatzRotationRNN:
 			for t in range(x.shape[1]):
 				x_t = x[sample,t,:]
 				x_t = x_t.reshape(1,x_t.shape[0])
-				x_layer = AnsatzRotationLinear(x_t.shape[1],self.n_hidden,self.n_wx,rotation=self.rotation,ansatz=self.ansatz,n_parallel=self.n_parallel_x,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
+				x_layer = AnsatzRotationLinear(x_t.shape[1],self.n_hidden,n_weights_a=self.n_wxa,n_weights_r=self.n_wxr,rotation=self.rotation,ansatz=self.ansatz,n_parallel=self.n_parallel_x,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
 				x_layer.w_a = self.wxa
 				x_layer.w_r = self.wxr
-				h_layer = AnsatzRotationLinear(h_0.shape[0],self.n_hidden,self.n_wh,rotation=self.rotation,ansatz=self.ansatz,n_parallel=self.n_parallel_h,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
+				h_layer = AnsatzRotationLinear(h_0.shape[0],self.n_hidden,n_weights_a=self.n_wha,n_weights_r=self.n_whr,rotation=self.rotation,ansatz=self.ansatz,n_parallel=self.n_parallel_h,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
 				h_layer.w_a = self.wha
 				h_layer.w_r = self.whr
 				out1 = x_layer(x_t)
