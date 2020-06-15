@@ -1,24 +1,16 @@
+import sys
+sys.path.append('../')
+from layers import Linear
 import numpy as np
-import matplotlib.pylab as plt
+np.random.seed(42)
+seed_simulator = 42
 
-k=10
-p = range(100,1001,900)
+x = np.random.randn(2,8)
 
-def classical(k,p):
-	return(k*p)
-def quantum(k,p):
-	return(k*np.log(p))
+hidden_layer = Linear(n_inputs=8,n_outputs=8,bias=True,seed_simulator=seed_simulator)
+output_layer = Linear(n_inputs=8,n_outputs=3,bias=True,seed_simulator=seed_simulator+1)
 
-clas = np.zeros(len(p))
-quant = np.zeros(len(p))
-for i,p_ in enumerate(p):
-	clas[i] = classical(k,p_)
-	quant[i] = quantum(k,p_)
+output = hidden_layer(x)
+output = output_layer(output)
 
-plt.plot(p,clas,label='Dense Layer')
-plt.plot(p,quant,label='Quantum Dense Layer')
-plt.yscale('log')
-plt.xlabel('Inputs')
-plt.ylabel('Parameters')
-plt.title('Number of classical versus quantum parameters for 10 nodes')
-plt.show()
+print('Output:',output)

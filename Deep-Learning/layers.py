@@ -25,23 +25,22 @@ class Linear:
 		return(w_idx)
 
 	def __call__(self,x):
-		out = np.zeros(self.n_outputs)
-		self.inputs = x
-		if self.bias:
-			x_ = np.zeros(x.shape[0] + 1)
-			x_[0] = 1/np.sqrt(2)
-			x_[1:] = x/((np.sqrt(np.sum(x**2))*np.sqrt(2))+self.eps)
-		else:
-			x_ = x[i,:]
-		for node in range(self.w.shape[0]):
-			n_qubits = int(np.ceil(np.log2(x_.shape[0])))
-			amplitude_register = qk.QuantumRegister(n_qubits)
-			classical_register = qk.ClassicalRegister(1)
-			circuit = qk.QuantumCircuit(amplitude_register,classical_register)
-			registers = [amplitude_register,classical_register]
-			measurement = squared_inner_product(x_,self.w[node,:],circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
-			out[node] = measurement
-		self.activation = out
+		out = np.zeros((x.shape[0],self.n_outputs))
+		for sample in range(x.shape[0]):
+			if self.bias:
+				x_ = np.zeros(x.shape[1] + 1)
+				x_[0] = 1/np.sqrt(2)
+				x_[1:] = x[sample,:]/((np.sqrt(np.sum(x[sample,:]**2))*np.sqrt(2))+self.eps)
+			else:
+				x_ = x[sample,:]
+			for node in range(self.w.shape[0]):
+				n_qubits = int(np.ceil(np.log2(x_.shape[0])))
+				amplitude_register = qk.QuantumRegister(n_qubits)
+				classical_register = qk.ClassicalRegister(1)
+				circuit = qk.QuantumCircuit(amplitude_register,classical_register)
+				registers = [amplitude_register,classical_register]
+				measurement = squared_inner_product(x_,self.w[node,:],circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
+				out[sample,node] = measurement
 		return(out)
 
 
@@ -71,34 +70,35 @@ class RNN:
 		return(w_idx)
 
 	def __call__(self,x,h_0):
-		timesteps = x.shape[0]
-		h = np.zeros((timesteps,h_0.shape[0]))
-		for i in range(x.shape[0]):
-			if self.bias:
-				x_i = np.zeros(x.shape[1] + 1)
-				h_i = np.zeros(h_0.shape[0] + 1)
-				x_i[0] = 1/np.sqrt(2)
-				x_i[1:] = x[i,:]/((np.sqrt(np.sum(x[i,:]**2))*np.sqrt(2))+self.eps)
-				h_i[0] = 1/np.sqrt(2)
-				h_i[1:] = h_0/((np.sqrt(np.sum(h_0**2))*np.sqrt(2)) + self.eps)
-			else:
-				x_i = x[i,:]
-				h_i = h_0
-			xh = np.concatenate((x_i,h_i))
-			h_temp = np.zeros(h_0.shape)
-			for node in range(h_0.shape[0]):
-				wx = self.wx[i,:]
-				wh = self.wh[i,:]
-				w = np.concatenate((wx,wh))
-				n_qubits = int(np.ceil(np.log2(xh.shape[0])))
-				amplitude_register = qk.QuantumRegister(n_qubits)
-				classical_register = qk.ClassicalRegister(1)
-				circuit = qk.QuantumCircuit(amplitude_register,classical_register)
-				registers = [amplitude_register,classical_register]
-				measurement = squared_inner_product(xh,w,circuit,registers,shots=self.shots,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
-				h_temp[node] = measurement
-			h[i,:] = h_temp
-			h_0 = h_temp
+		timesteps = x.shape[1]
+		h = np.zeros((x.shape[0],timesteps,h_0.shape[0]))
+		for sample in range(x.shape[0]):
+			for i in range(x.shape[1]):
+				if self.bias:
+					x_i = np.zeros(x.shape[2] + 1)
+					h_i = np.zeros(h_0.shape[0] + 1)
+					x_i[0] = 1/np.sqrt(2)
+					x_i[1:] = x[sample,i,:]/((np.sqrt(np.sum(x[sample,i,:]**2))*np.sqrt(2))+self.eps)
+					h_i[0] = 1/np.sqrt(2)
+					h_i[1:] = h_0/((np.sqrt(np.sum(h_0**2))*np.sqrt(2)) + self.eps)
+				else:
+					x_i = x[sample,i,:]
+					h_i = h_0
+				xh = np.concatenate((x_i,h_i))
+				h_temp = np.zeros(h_0.shape)
+				for node in range(h_0.shape[0]):
+					wx = self.wx[i,:]
+					wh = self.wh[i,:]
+					w = np.concatenate((wx,wh))
+					n_qubits = int(np.ceil(np.log2(xh.shape[0])))
+					amplitude_register = qk.QuantumRegister(n_qubits)
+					classical_register = qk.ClassicalRegister(1)
+					circuit = qk.QuantumCircuit(amplitude_register,classical_register)
+					registers = [amplitude_register,classical_register]
+					measurement = squared_inner_product(xh,w,circuit,registers,shots=self.shots,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
+					h_temp[node] = measurement
+				h[sample,i,:] = h_temp
+				h_0 = h_temp
 		return(h)
 
 class AnsatzLinear:
@@ -122,26 +122,27 @@ class AnsatzLinear:
 		return(w_idx)
 
 	def __call__(self,x):
-		output = np.zeros(self.n_outputs)
-		for i in range(self.n_outputs):
-			amplitude_register = qk.QuantumRegister(self.n_qubits)
-			classical_register = qk.ClassicalRegister(1)
-			ancilla_register = qk.QuantumRegister(1)
-			circuit = qk.QuantumCircuit(amplitude_register,ancilla_register,classical_register)
-			registers = [amplitude_register,ancilla_register,classical_register]
-			encoder = AmplitudeEncoder()
-			circuit, registers = encoder(circuit,registers,x)
-			circuit,registers = self.ansatz(self.w[i,:],circuit,registers)
-			circuit.mcrx(np.pi,[registers[0][j] for j in range(len(registers[0]))],registers[1][0])
-			circuit.measure(registers[1],registers[-1])
-			job = qk.execute(circuit, backend = self.backend,seed_simulator=self.seed_simulator, shots=self.shots,noise_model=self.noise_model)
-			result = job.result().get_counts(circuit)
-			out = 0
-			for key,value in result.items():
-				if key == '1':
-					out += value
-			out /= self.shots
-			output[i] = out
+		output = np.zeros((x.shape[0],self.n_outputs))
+		for sample in range(x.shape[0]):
+			for i in range(self.n_outputs):
+				amplitude_register = qk.QuantumRegister(self.n_qubits)
+				classical_register = qk.ClassicalRegister(1)
+				ancilla_register = qk.QuantumRegister(1)
+				circuit = qk.QuantumCircuit(amplitude_register,ancilla_register,classical_register)
+				registers = [amplitude_register,ancilla_register,classical_register]
+				encoder = AmplitudeEncoder()
+				circuit, registers = encoder(circuit,registers,x[sample,:])
+				circuit,registers = self.ansatz(self.w[i,:],circuit,registers)
+				circuit.mcrx(np.pi,[registers[0][j] for j in range(len(registers[0]))],registers[1][0])
+				circuit.measure(registers[1],registers[-1])
+				job = qk.execute(circuit, backend = self.backend,seed_simulator=self.seed_simulator, shots=self.shots,noise_model=self.noise_model)
+				result = job.result().get_counts(circuit)
+				out = 0
+				for key,value in result.items():
+					if key == '1':
+						out += value
+				out /= self.shots
+				output[sample,i] = out
 		return(output)
 
 class AnsatzRNN:
@@ -168,19 +169,20 @@ class AnsatzRNN:
 		return(w_idx)
 
 	def __call__(self,x,h_0):
-		timesteps = x.shape[0]
-		h = np.zeros((timesteps,h_0.shape[0]))
-		for t in range(x.shape[0]):
-			x_t = x[t,:]
-			x_layer = AnsatzLinear(x_t.shape[0],self.n_hidden,self.n_wx,ansatz=self.ansatz,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
-			x_layer.w = self.wx
-			h_layer = AnsatzLinear(h_0.shape[0],self.n_hidden,self.n_wh,ansatz=self.ansatz,seed_simulator = self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
-			h_layer.w = self.wh
-			out1 = x_layer(x_t)
-			out2 = h_layer(h_0)
-			h_temp = out1 + out2
-			h[t,:] = h_temp
-			h_0 = h_temp
+		timesteps = x.shape[1]
+		h = np.zeros((x.shape[0],timesteps,h_0.shape[0]))
+		for sample in range(x.shape[0]):
+			for t in range(x.shape[1]):
+				x_t = x[sample,t,:]
+				x_layer = AnsatzLinear(x_t.shape[0],self.n_hidden,self.n_wx,ansatz=self.ansatz,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
+				x_layer.w = self.wx
+				h_layer = AnsatzLinear(h_0.shape[0],self.n_hidden,self.n_wh,ansatz=self.ansatz,seed_simulator = self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
+				h_layer.w = self.wh
+				out1 = x_layer(x_t)
+				out2 = h_layer(h_0)
+				h_temp = (out1 + out2)/2
+				h[sample,t,:] = h_temp
+				h_0 = h_temp
 		return(h)
 
 class RotationLinear:
@@ -205,32 +207,33 @@ class RotationLinear:
 		return(w_idx)
 
 	def __call__(self,x):
-		output = np.zeros(self.n_outputs)
-		for i in range(0,self.n_outputs,self.n_parallel):
-			if (self.n_outputs - i) < self.n_parallel:
-				n_parallel = self.n_outputs - i
-			else:
-				n_parallel = self.n_parallel
-			amplitude_register = qk.QuantumRegister(self.n_qubits)
-			classical_register = qk.ClassicalRegister(n_parallel)
-			ancilla_register = qk.QuantumRegister(n_parallel)
-			circuit = qk.QuantumCircuit(amplitude_register,ancilla_register,classical_register)
-			registers = [amplitude_register,ancilla_register,classical_register]
-			encoder = AmplitudeEncoder()
-			circuit, registers = encoder(circuit,registers,x)
-			for j in range(n_parallel):
-				circuit,registers = self.rotation(self.w[i+j,:],j,circuit,registers)
-			circuit.measure(registers[1],registers[-1])
-			job = qk.execute(circuit, backend = self.backend,seed_simulator=self.seed_simulator, shots=self.shots,noise_model=self.noise_model)
-			result = job.result().get_counts(circuit)
-			out = np.zeros(n_parallel)
-			for key,value in result.items():
-				key_ = key[::-1]
-				for k,qubit in enumerate(key_):
-					if qubit == '1':
-						out[k] += value
-			out /= self.shots
-			output[i:(i+n_parallel)] = out
+		output = np.zeros((x.shape[0],self.n_outputs))
+		for sample in range(x.shape[0]):
+			for i in range(0,self.n_outputs,self.n_parallel):
+				if (self.n_outputs - i) < self.n_parallel:
+					n_parallel = self.n_outputs - i
+				else:
+					n_parallel = self.n_parallel
+				amplitude_register = qk.QuantumRegister(self.n_qubits)
+				classical_register = qk.ClassicalRegister(n_parallel)
+				ancilla_register = qk.QuantumRegister(n_parallel)
+				circuit = qk.QuantumCircuit(amplitude_register,ancilla_register,classical_register)
+				registers = [amplitude_register,ancilla_register,classical_register]
+				encoder = AmplitudeEncoder()
+				circuit, registers = encoder(circuit,registers,x[sample,:])
+				for j in range(n_parallel):
+					circuit,registers = self.rotation(self.w[i+j,:],j,circuit,registers)
+				circuit.measure(registers[1],registers[-1])
+				job = qk.execute(circuit, backend = self.backend,seed_simulator=self.seed_simulator, shots=self.shots,noise_model=self.noise_model)
+				result = job.result().get_counts(circuit)
+				out = np.zeros(n_parallel)
+				for key,value in result.items():
+					key_ = key[::-1]
+					for k,qubit in enumerate(key_):
+						if qubit == '1':
+							out[k] += value
+				out /= self.shots
+				output[sample,i:(i+n_parallel)] = out
 		return(output)
 
 class RotationRNN:
@@ -263,19 +266,20 @@ class RotationRNN:
 	def __call__(self,x,h_0 = None):
 		if h_0 is None:
 			h_0 = np.ones(self.n_hidden)
-		timesteps = x.shape[0]
-		h = np.zeros((timesteps,h_0.shape[0]))
-		for t in range(x.shape[0]):
-			x_t = x[t,:]
-			x_layer = RotationLinear(x_t.shape[0],self.n_hidden,self.n_wx,rotation=self.rotation,n_parallel=self.n_parallel_x,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
-			x_layer.w = self.wx
-			h_layer = RotationLinear(h_0.shape[0],self.n_hidden,self.n_wh,rotation=self.rotation,n_parallel=self.n_parallel_h,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
-			h_layer.w = self.wh
-			out1 = x_layer(x_t)
-			out2 = h_layer(h_0)
-			h_temp = out1 + out2
-			h[t,:] = h_temp
-			h_0 = h_temp
+		timesteps = x.shape[1]
+		h = np.zeros((x.shape[0],timesteps,h_0.shape[0]))
+		for sample in range(x.shape[0]):
+			for t in range(x.shape[1]):
+				x_t = x[sample,t,:]
+				x_layer = RotationLinear(x_t.shape[0],self.n_hidden,self.n_wx,rotation=self.rotation,n_parallel=self.n_parallel_x,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
+				x_layer.w = self.wx
+				h_layer = RotationLinear(h_0.shape[0],self.n_hidden,self.n_wh,rotation=self.rotation,n_parallel=self.n_parallel_h,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
+				h_layer.w = self.wh
+				out1 = x_layer(x_t)
+				out2 = h_layer(h_0)
+				h_temp = out1 + out2
+				h[sample,t,:] = h_temp
+				h_0 = h_temp
 		return(h)
 
 class AnsatzRotationLinear:
@@ -313,34 +317,35 @@ class AnsatzRotationLinear:
 		return(w_idx)
 
 	def __call__(self,x):
-		output = np.zeros(self.n_outputs)
-		for i in range(0,self.n_outputs,self.n_parallel):
-			if (self.n_outputs - i) < self.n_parallel:
-				n_parallel = self.n_outputs - i
-			else:
-				n_parallel = self.n_parallel
-			amplitude_register = qk.QuantumRegister(self.n_qubits)
-			classical_register = qk.ClassicalRegister(n_parallel)
-			ancilla_register = qk.QuantumRegister(n_parallel)
-			circuit = qk.QuantumCircuit(amplitude_register,ancilla_register,classical_register)
-			registers = [amplitude_register,ancilla_register,classical_register]
-			encoder = AmplitudeEncoder()
-			circuit, registers = encoder(circuit,registers,x)
-			if self.n_parallel > 1:
-				circuit,registers = self.ansatz(self.w_a[0,:],circuit,registers)
-			else:
-				circuit,registers = self.ansatz(self.w_a[i,:],circuit,registers)
-			for j in range(n_parallel):
-				circuit,registers = self.rotation(self.w_r[i+j,:],j,circuit,registers)
-			circuit.measure(registers[1],registers[-1])
-			job = qk.execute(circuit, backend = self.backend,seed_simulator=self.seed_simulator,shots=self.shots,noise_model=self.noise_model)
-			result = job.result().get_counts(circuit)
-			out = np.zeros(n_parallel)
-			for key,value in result.items():
-				key_ = key[::-1]
-				for k,qubit in enumerate(key_):
-					if qubit == '1':
-						out[k] += value
-			out /= self.shots
-			output[i:(i+n_parallel)] = out
+		output = np.zeros((x.shape[0],self.n_outputs))
+		for sample in range(x.shape[0]):
+			for i in range(0,self.n_outputs,self.n_parallel):
+				if (self.n_outputs - i) < self.n_parallel:
+					n_parallel = self.n_outputs - i
+				else:
+					n_parallel = self.n_parallel
+				amplitude_register = qk.QuantumRegister(self.n_qubits)
+				classical_register = qk.ClassicalRegister(n_parallel)
+				ancilla_register = qk.QuantumRegister(n_parallel)
+				circuit = qk.QuantumCircuit(amplitude_register,ancilla_register,classical_register)
+				registers = [amplitude_register,ancilla_register,classical_register]
+				encoder = AmplitudeEncoder()
+				circuit, registers = encoder(circuit,registers,x[sample,:])
+				if self.n_parallel > 1:
+					circuit,registers = self.ansatz(self.w_a[0,:],circuit,registers)
+				else:
+					circuit,registers = self.ansatz(self.w_a[i,:],circuit,registers)
+				for j in range(n_parallel):
+					circuit,registers = self.rotation(self.w_r[i+j,:],j,circuit,registers)
+				circuit.measure(registers[1],registers[-1])
+				job = qk.execute(circuit, backend = self.backend,seed_simulator=self.seed_simulator,shots=self.shots,noise_model=self.noise_model)
+				result = job.result().get_counts(circuit)
+				out = np.zeros(n_parallel)
+				for key,value in result.items():
+					key_ = key[::-1]
+					for k,qubit in enumerate(key_):
+						if qubit == '1':
+							out[k] += value
+				out /= self.shots
+				output[sample,i:(i+n_parallel)] = out
 		return(output)
