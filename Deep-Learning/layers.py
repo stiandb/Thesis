@@ -6,7 +6,7 @@ from dl_utils import *
 
 
 class Linear:
-	def __init__(self,n_inputs=None,n_outputs=None,bias=True,shots=500,eps = 1e-8):
+	def __init__(self,n_inputs=None,n_outputs=None,bias=True,shots=500,eps = 1e-8,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None):
 		self.n_inputs = n_inputs
 		self.n_outputs = n_outputs
 		self.w = np.random.randn(n_outputs,(n_inputs + 1) if bias else n_inputs)
@@ -14,6 +14,9 @@ class Linear:
 		self.bias = bias
 		self.w_size = self.n_outputs*((n_inputs + 1) if bias else n_inputs)
 		self.eps = eps
+		self.seed_simulator = seed_simulator
+		self.backend=backend
+		self.noise_model=noise_model
 
 	def set_weights(self,w,w_idx=0):
 		n_inputs = (self.n_inputs + 1) if self.bias else self.n_inputs
@@ -36,7 +39,7 @@ class Linear:
 			classical_register = qk.ClassicalRegister(1)
 			circuit = qk.QuantumCircuit(amplitude_register,classical_register)
 			registers = [amplitude_register,classical_register]
-			measurement = squared_inner_product(x_,self.w[node,:],circuit,registers)
+			measurement = squared_inner_product(x_,self.w[node,:],circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
 			out[node] = measurement
 		self.activation = out
 		return(out)
@@ -44,7 +47,7 @@ class Linear:
 
 
 class RNN:
-	def __init__(self,n_inputs=None,n_hidden=None,bias=True,shots=500,eps=1e-8):
+	def __init__(self,n_inputs=None,n_hidden=None,bias=True,shots=500,eps=1e-8,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None):
 		self.wx = np.random.randn(n_hidden,(n_inputs + 1) if bias else n_inputs)+0.1
 		self.wh = np.random.randn(n_hidden,(n_hidden + 1) if bias else n_hidden)+0.1
 		self.shots = shots
@@ -54,6 +57,9 @@ class RNN:
 		self.n_inputs = n_inputs
 		self.w_size = n_hidden*((n_inputs + 1) if bias else n_inputs) + n_hidden*((n_hidden + 1) if bias else n_hidden)
 		self.n_outputs = self.n_hidden
+		self.seed_simulator = seed_simulator
+		self.backend=backend
+		self.noise_model=noise_model
 
 	def set_weights(self,w,w_idx=0):
 		n_inputs = (self.n_inputs + 1) if self.bias else self.n_inputs
@@ -89,14 +95,14 @@ class RNN:
 				classical_register = qk.ClassicalRegister(1)
 				circuit = qk.QuantumCircuit(amplitude_register,classical_register)
 				registers = [amplitude_register,classical_register]
-				measurement = squared_inner_product(xh,w,circuit,registers,shots=self.shots)
+				measurement = squared_inner_product(xh,w,circuit,registers,shots=self.shots,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
 				h_temp[node] = measurement
 			h[i,:] = h_temp
 			h_0 = h_temp
 		return(h)
 
 class AnsatzLinear:
-	def __init__(self,n_inputs=None,n_outputs=None,n_weights=None,ansatz=None,shots=1000):
+	def __init__(self,n_inputs=None,n_outputs=None,n_weights=None,ansatz=None,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None):
 		self.shots = shots
 		self.n_inputs = n_inputs
 		self.n_qubits = int(np.ceil(np.log2(n_inputs)))
@@ -106,6 +112,9 @@ class AnsatzLinear:
 		self.ansatz=ansatz
 		self.w_size = n_outputs*n_weights
 		self.shots=shots
+		self.seed_simulator = seed_simulator
+		self.backend=backend
+		self.noise_model=noise_model
 
 	def set_weights(self,w,w_idx=0):
 		self.w = w[w_idx:(w_idx+self.n_outputs*self.n_weights)].reshape(self.n_outputs,self.n_weights)
@@ -125,7 +134,7 @@ class AnsatzLinear:
 			circuit,registers = self.ansatz(self.w[i,:],circuit,registers)
 			circuit.mcrx(np.pi,[registers[0][j] for j in range(len(registers[0]))],registers[1][0])
 			circuit.measure(registers[1],registers[-1])
-			job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=self.shots)
+			job = qk.execute(circuit, backend = self.backend,seed_simulator=self.seed_simulator, shots=self.shots,noise_model=self.noise_model)
 			result = job.result().get_counts(circuit)
 			out = 0
 			for key,value in result.items():
@@ -136,7 +145,7 @@ class AnsatzLinear:
 		return(output)
 
 class AnsatzRNN:
-	def __init__(self,n_hidden=None,n_wx=None,n_wh=None,ansatz=None,shots=1000):
+	def __init__(self,n_hidden=None,n_wx=None,n_wh=None,ansatz=None,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None):
 		self.shots = shots
 		self.n_hidden = n_hidden
 		self.wx = np.random.randn(n_hidden,n_wx)
@@ -146,6 +155,9 @@ class AnsatzRNN:
 		self.ansatz=ansatz
 		self.w_size = n_hidden*n_wx + n_hidden*n_wh
 		self.shots=shots
+		self.seed_simulator = seed_simulator
+		self.backend=backend
+		self.noise_model=noise_model
 
 	
 	def set_weights(self,w,w_idx=0):
@@ -160,9 +172,9 @@ class AnsatzRNN:
 		h = np.zeros((timesteps,h_0.shape[0]))
 		for t in range(x.shape[0]):
 			x_t = x[t,:]
-			x_layer = AnsatzLinear(x_t.shape[0],self.n_hidden,self.n_wx,ansatz=self.ansatz)
+			x_layer = AnsatzLinear(x_t.shape[0],self.n_hidden,self.n_wx,ansatz=self.ansatz,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
 			x_layer.w = self.wx
-			h_layer = AnsatzLinear(h_0.shape[0],self.n_hidden,self.n_wh,ansatz=self.ansatz)
+			h_layer = AnsatzLinear(h_0.shape[0],self.n_hidden,self.n_wh,ansatz=self.ansatz,seed_simulator = self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
 			h_layer.w = self.wh
 			out1 = x_layer(x_t)
 			out2 = h_layer(h_0)
@@ -172,7 +184,7 @@ class AnsatzRNN:
 		return(h)
 
 class RotationLinear:
-	def __init__(self,n_inputs=None,n_outputs=None,n_weights=None,rotation=None,n_parallel=1,shots=1000):
+	def __init__(self,n_inputs=None,n_outputs=None,n_weights=None,rotation=None,n_parallel=1,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None):
 		self.shots = shots
 		self.n_inputs = n_inputs
 		self.n_qubits = int(np.ceil(np.log2(n_inputs)))
@@ -183,6 +195,9 @@ class RotationLinear:
 		self.w_size = n_outputs*n_weights
 		self.shots = shots
 		self.n_parallel = n_parallel
+		self.seed_simulator = seed_simulator
+		self.backend = backend
+		self.noise_model = noise_model
 
 	def set_weights(self,w,w_idx=0):
 		self.w = w[w_idx:(w_idx+self.n_outputs*self.n_weights)].reshape(self.n_outputs,self.n_weights)
@@ -206,7 +221,7 @@ class RotationLinear:
 			for j in range(n_parallel):
 				circuit,registers = self.rotation(self.w[i+j,:],j,circuit,registers)
 			circuit.measure(registers[1],registers[-1])
-			job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=self.shots)
+			job = qk.execute(circuit, backend = self.backend,seed_simulator=self.seed_simulator, shots=self.shots,noise_model=self.noise_model)
 			result = job.result().get_counts(circuit)
 			out = np.zeros(n_parallel)
 			for key,value in result.items():
@@ -219,7 +234,7 @@ class RotationLinear:
 		return(output)
 
 class RotationRNN:
-	def __init__(self,n_hidden=None,n_wx=None,n_wh=None,rotation=None,n_parallel_x=1,n_parallel_h=1,shots=1000):
+	def __init__(self,n_hidden=None,n_wx=None,n_wh=None,rotation=None,n_parallel_x=1,n_parallel_h=1,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None):
 		self.shots = shots
 		self.n_hidden = n_hidden
 		self.n_outputs = n_hidden
@@ -233,6 +248,9 @@ class RotationRNN:
 		self.shots=shots
 		self.n_parallel_x = n_parallel_x
 		self.n_parallel_h = n_parallel_h
+		self.seed_simulator = seed_simulator
+		self.backend=backend
+		self.noise_model = noise_model
 
 	
 	def set_weights(self,w,w_idx=0):
@@ -249,9 +267,9 @@ class RotationRNN:
 		h = np.zeros((timesteps,h_0.shape[0]))
 		for t in range(x.shape[0]):
 			x_t = x[t,:]
-			x_layer = RotationLinear(x_t.shape[0],self.n_hidden,self.n_wx,rotation=self.rotation,n_parallel=self.n_parallel_x)
+			x_layer = RotationLinear(x_t.shape[0],self.n_hidden,self.n_wx,rotation=self.rotation,n_parallel=self.n_parallel_x,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
 			x_layer.w = self.wx
-			h_layer = RotationLinear(h_0.shape[0],self.n_hidden,self.n_wh,rotation=self.rotation,n_parallel=self.n_parallel_h)
+			h_layer = RotationLinear(h_0.shape[0],self.n_hidden,self.n_wh,rotation=self.rotation,n_parallel=self.n_parallel_h,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
 			h_layer.w = self.wh
 			out1 = x_layer(x_t)
 			out2 = h_layer(h_0)
@@ -261,7 +279,7 @@ class RotationRNN:
 		return(h)
 
 class AnsatzRotationLinear:
-	def __init__(self,n_inputs=None,n_outputs=None,n_weights_a=None,n_weights_r=None,ansatz=None,rotation=None,n_parallel = 1,shots=1000):
+	def __init__(self,n_inputs=None,n_outputs=None,n_weights_a=None,n_weights_r=None,ansatz=None,rotation=None,n_parallel = 1,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None):
 		self.shots = shots
 		self.n_inputs = n_inputs
 		self.n_qubits = int(np.ceil(np.log2(n_inputs)))
@@ -279,6 +297,9 @@ class AnsatzRotationLinear:
 		self.ansatz=ansatz
 		self.rotation=rotation
 		self.shots=shots
+		self.seed_simulator = seed_simulator
+		self.backend = backend
+		self.noise_model = noise_model
 
 	def set_weights(self,w,w_idx=0):
 		if self.n_parallel > 1:
@@ -309,11 +330,10 @@ class AnsatzRotationLinear:
 				circuit,registers = self.ansatz(self.w_a[0,:],circuit,registers)
 			else:
 				circuit,registers = self.ansatz(self.w_a[i,:],circuit,registers)
-
 			for j in range(n_parallel):
 				circuit,registers = self.rotation(self.w_r[i+j,:],j,circuit,registers)
 			circuit.measure(registers[1],registers[-1])
-			job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=self.shots)
+			job = qk.execute(circuit, backend = self.backend,seed_simulator=self.seed_simulator,shots=self.shots,noise_model=self.noise_model)
 			result = job.result().get_counts(circuit)
 			out = np.zeros(n_parallel)
 			for key,value in result.items():

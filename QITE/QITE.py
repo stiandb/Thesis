@@ -7,7 +7,7 @@ from sympy import Matrix
 import scipy as scipy
 
 class QITE:
-	def __init__(self,n_qubits,hamiltonian_list,a_list,dt,initial_state,seed=None,shots=1000,lamb=0.1):
+	def __init__(self,n_qubits,hamiltonian_list,a_list,dt,initial_state,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None,shots=1000,lamb=0.1):
 		self.hamiltonian_list = hamiltonian_list
 		self.n_terms = len(hamiltonian_list)
 		self.a_list = a_list
@@ -15,12 +15,14 @@ class QITE:
 			for j in range(len(self.a_list[i])):
 				self.a_list[i][j][0] = 1
 		self.dt = dt
-		self.seed = seed
+		self.seed_simulator = seed_simulator
+		self.backend=backend
 		self.shots=shots
 		self.n_qubits=n_qubits
 		self.initial_state = initial_state
 		self.lamb=lamb
 		self.time_evolution_list = []
+		self.noise_model=noise_model
 
 	def S_ij(self,i,j,term):
 		sigma_ij = operator_product(deepcopy(self.a_list[term][i]),deepcopy(self.a_list[term][j]))
@@ -35,7 +37,7 @@ class QITE:
 		for qubit,gate in qubit_and_gate:
 			qubit_list.append(qubit)
 			circuit,registers = pauli_expectation_transformation(qubit,gate,circuit,registers)
-		expval = measure_expectation_value(qubit_list,factor,circuit,registers,seed=self.seed,shots=self.shots)
+		expval = measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,shots=self.shots,noise_model=self.noise_model)
 		return(expval)
 
 	def b_i(self,i,term):
@@ -50,7 +52,7 @@ class QITE:
 		for qubit,gate in sigma_iH[1:]:
 			circuit,registers = pauli_expectation_transformation(qubit,gate,circuit,registers)
 			qubit_list.append(qubit)
-		expval = measure_expectation_value(qubit_list,factor,circuit,registers,seed=self.seed,shots=self.shots)
+		expval = measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,shots=self.shots,noise_model=self.noise_model)
 		return(np.imag(expval))
 
 	def squared_norm(self,term):
@@ -66,7 +68,7 @@ class QITE:
 		for qubit,gate in self.hamiltonian_list[term][1:]:
 			circuit,registers = pauli_expectation_transformation(qubit,gate,circuit,registers)
 			qubit_list.append(qubit)
-		expval = measure_expectation_value(qubit_list,factor,circuit,registers,seed=self.seed,shots=self.shots)
+		expval = measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,shots=self.shots,noise_model=self.noise_model)
 		return(1 - 2*self.dt*expval)
 
 	
@@ -134,7 +136,7 @@ class QITE:
 			for qubit,gate in h_m[1:]:
 				circuit,registers = pauli_expectation_transformation(qubit,gate,circuit,registers)
 				qubit_list.append(qubit)
-			expval += measure_expectation_value(qubit_list,factor,circuit,registers,seed=self.seed,shots=self.shots)
+			expval += measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,shots=self.shots,noise_model=self.noise_model)
 		return(expval)
 
 

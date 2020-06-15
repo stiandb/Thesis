@@ -18,10 +18,10 @@ class HamiltonianSimulation:
 		U = ControlledTimeEvolutionOperator(self.hamiltonian_list,dt,t)
 		return(QPE(self.circuit,self.registers,U))
 
-	def measure_eigenvalues(self,dt,t,E_max,shots=1000,backend=qk.Aer.get_backend('qasm_simulator')):
+	def measure_eigenvalues(self,dt,t,E_max,shots=1000,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None):
 		self.circuit,self.registers = self.__call__(dt,t)
 		self.circuit.measure(self.registers[0],self.registers[-1])
-		job = qk.execute(self.circuit, backend = backend, shots=shots)
+		job = qk.execute(self.circuit, backend = backend, shots=shots,seed_simulator=seed_simulator,noise_model=noise_model)
 		result = job.result()
 		result = result.get_counts(self.circuit)
 

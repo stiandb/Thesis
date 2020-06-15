@@ -5,7 +5,7 @@ from utils import *
 
 
 class VQE:
-	def __init__(self,hamiltonian_list,ansatz,n_qubits,ancilla=0,shots=1000,seed=None,max_energy=False):
+	def __init__(self,hamiltonian_list,ansatz,n_qubits,ancilla=0,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,max_energy=False):
 		"""
 		Inputs:
 			hamiltonian_list (list) - List containing each term of the hamiltionian
@@ -22,12 +22,15 @@ class VQE:
 
 		"""
 		self.hamiltonian_list = hamiltonian_list
+		self.seed_simulator = seed_simulator
+		self.backend=backend
 		self.ansatz = ansatz
 		self.n_qubits = n_qubits
 		self.shots = shots
 		self.seed = seed
 		self.max_energy = max_energy
 		self.ancilla=ancilla
+		self.noise_model=noise_model
 
 
 	def expectation_value(self,theta):
@@ -50,7 +53,7 @@ class VQE:
 			for qubit,gate in pauli_string[1:]:
 				circuit,registers = pauli_expectation_transformation(qubit,gate,circuit,registers)
 				qubit_list.append(qubit)
-			E += measure_expectation_value(qubit_list,factor,circuit,registers,self.seed,self.shots)
+			E += measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,shots=self.shots,noise_model=self.noise_model)
 		print('<E> = ', E)
 		if self.max_energy:
 			E = -E

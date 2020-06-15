@@ -61,19 +61,22 @@ l2 = 8
 n = 5
 X_train = X_train[:n,:]
 y_train = y_train[:n]
-layers = [AnsatzRotationLinear(l1,l2,n_weights_a= int(np.ceil(np.log2(l1))),n_weights_r = int(np.ceil(np.log2(l1))),rotation=y_rotation,ansatz=y_rotation_ansatz),AnsatzRotationLinear(l2,3,n_weights_a= int(np.ceil(np.log2(l2))),n_weights_r = int(np.ceil(np.log2(l2))),rotation=y_rotation,ansatz=y_rotation_ansatz,n_parallel=1)]
+y_rotation = YRotation(bias=True)
+layer1 = AnsatzRotationLinear(l1,l2,n_weights_a= int(np.ceil(np.log2(l1))),n_weights_r = int(np.ceil(np.log2(l1)))+1,rotation=y_rotation,ansatz=y_rotation_ansatz)
+layer2 = AnsatzRotationLinear(l2,3,n_weights_a= int(np.ceil(np.log2(l2))),n_weights_r = int(np.ceil(np.log2(l2)))+1,rotation=y_rotation,ansatz=y_rotation_ansatz)
+layers = [layer1,layer2]
 loss_fn = cross_entropy()
 model = QDNN(layers,loss_fn)
 
-np.save('model_params.npy',model.fit(X=X_train,y=y_train,method='Powell'))
+np.save('model_params_bias.npy',model.fit(X=X_train,y=y_train,method='Powell'))
 
 
 
-w = np.load('model_params.npy')
+w = np.load('model_params_bias.npy')
 X = iris['data']
 y = iris['target']
 model.set_weights(w)
-np.save('loss.npy',model.loss)
+np.save('loss_bias.npy',model.loss)
 y_pred = model.predict(X_test)
 y_pred = np.argmax(y_pred,axis=1)
 

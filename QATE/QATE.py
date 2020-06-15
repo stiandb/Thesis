@@ -4,7 +4,7 @@ from utils import *
 from copy import deepcopy
 
 class QATE:
-	def __init__(self,n_qubits,H_0,H_1,initial_state,dt,t):
+	def __init__(self,n_qubits,H_0,H_1,initial_state,dt,t,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None):
 		"""
 		Input:
 			n_qubits (int) - The number of qubits in the circuit
@@ -21,6 +21,9 @@ class QATE:
 		self.t = t
 		self.iterations = int(self.t/self.dt)
 		self.n_qubits = n_qubits
+		self.seed_simulator = seed_simulator
+		self.backend=backend
+		self.noise_model=noise_model
 	
 	def trotter_step(self,circuit,registers,k):
 		"""
@@ -84,5 +87,5 @@ class QATE:
 			for qubit,gate in h_m[1:]:
 				qubit_list.append(qubit)
 				circuit,registers = pauli_expectation_transformation(qubit,gate,circuit,registers)
-			E += measure_expectation_value(qubit_list,factor,circuit,registers)
+			E += measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
 		return(E)

@@ -273,12 +273,12 @@ def pauli_expectation_transformation(qubit,gate,circuit,registers):
 			circuit.z(registers[0][qubit])
 		return(circuit,registers)
 
-def measure_expectation_value(qubit_list,factor,circuit,registers,seed=None,shots=1000):
+def measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,shots=1000):
 	"""
 	Measures qubits and calculates eigenvalues
 	"""
 	circuit.measure([registers[0][qubit] for qubit in qubit_list],registers[-1])
-	job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator',seed=seed), shots=shots)
+	job = qk.execute(circuit, backend = backend,seed_simulator=seed_simulator,shots=shots,noise_model=noise_model)
 	result = job.result().get_counts(circuit)
 	E = 0
 	for key, value in result.items():
@@ -594,7 +594,7 @@ class PairingUCCD:
 				idx += 8
 
 
-def hadamard_test(circuit,registers,hamiltonian_term,imag=True,shots=1000,ancilla_index=1):
+def hadamard_test(circuit,registers,hamiltonian_term,imag=True,shots=1000,ancilla_index=1,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None):
 	"""
 	Input:
 		circuit (qiskit QuantumCircuit) - Circuit to apply Hadamard test on.
@@ -616,7 +616,7 @@ def hadamard_test(circuit,registers,hamiltonian_term,imag=True,shots=1000,ancill
 	circuit,register = hamiltonian_term(circuit,registers)
 	circuit.h(registers[-2][ancilla_index])
 	circuit.measure(registers[-2][ancilla_index],registers[-1])
-	job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=shots)
+	job = qk.execute(circuit, backend = backend, shots=shots,seed_simulator=seed_simulator,noise_model=noise_model)
 	result = job.result()
 	result = result.get_counts(circuit)
 	measurements = 0
@@ -835,7 +835,7 @@ class AmplitudeEncoder:
 		self.usage = True
 		return(circuit,registers)			
 				
-def squared_inner_product(x,y,circuit,registers,shots=1000):
+def squared_inner_product(x,y,circuit,registers,shots=1000,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None):
 	"""
 	Calculates the squared inner product of two arbitrary vectors.
 	Input:
@@ -857,7 +857,7 @@ def squared_inner_product(x,y,circuit,registers,shots=1000):
 		circuit.x(registers[0][i])
 	circuit.mcrx(np.pi,[registers[0][i] for i in range(len(registers[0]))],ancilla_register[0])
 	circuit.measure(ancilla_register,registers[-1])
-	job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=shots)
+	job = qk.execute(circuit, backend = backend, shots=shots,seed_simulator=seed_simulator,noise_model=noise_model)
 	result = job.result().get_counts(circuit)
 	inner_product = 0
 	for key,value in result.items():
