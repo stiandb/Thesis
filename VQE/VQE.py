@@ -2,6 +2,7 @@ import qiskit as qk
 import numpy as np
 from scipy.optimize import minimize
 from utils import *
+from inspect import getfullargspec
 
 
 class VQE:
@@ -27,10 +28,15 @@ class VQE:
 		self.ansatz = ansatz
 		self.n_qubits = n_qubits
 		self.shots = shots
-		self.seed = seed
 		self.max_energy = max_energy
 		self.ancilla=ancilla
 		self.noise_model=noise_model
+		spec = getfullargspec(self.ansatz)
+		if 'classical_bits' in spec[0]:
+			self.set_classical_bits = True
+		else:
+			self.set_classical_bits = False
+
 
 
 	def expectation_value(self,theta):
@@ -47,13 +53,18 @@ class VQE:
 			if classical_bits == 0:
 				E += factor
 				continue
-			circuit,registers = initialize_circuit(self.n_qubits,self.ancilla,classical_bits)
-			circuit,registers = self.ansatz(theta,circuit,registers)
+			if self.set_classical_bits:
+				circuit,registers = self.ansatz(theta,circuit,registers,classical_bits)
+			else:
+				circuit,registers = initialize_circuit(self.n_qubits,self.ancilla,classical_bits)
+				circuit,registers = self.ansatz(theta,circuit,registers)
 			qubit_list = []
 			for qubit,gate in pauli_string[1:]:
 				circuit,registers = pauli_expectation_transformation(qubit,gate,circuit,registers)
 				qubit_list.append(qubit)
 			E += measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,shots=self.shots,noise_model=self.noise_model)
+			if not self.seed_simulator is None:
+				self.seed_simulator += 1
 		print('<E> = ', E)
 		if self.max_energy:
 			E = -E

@@ -55,6 +55,19 @@ class QITE:
 		expval = measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,shots=self.shots,noise_model=self.noise_model)
 		return(np.imag(expval))
 
+	def b_ii(self,i,term):
+		sigma_iH = operator_product(deepcopy(self.a_list[term][i]),deepcopy(self.hamiltonian_list[term]))
+		factor = sigma_iH[0]
+		circuit, registers = initialize_circuit(self.n_qubits,1,1)
+		circuit, registers = self.evolve_state(circuit,registers)
+		if np.imag(factor) != 0:
+			imag = False
+		else:
+			imag= True
+		res = hadamard_test(circuit,registers,sigma_iH,imag=imag)
+		return(res)
+
+
 	def squared_norm(self,term):
 		classical_bits = len(self.hamiltonian_list[term][1:])
 		factor = self.hamiltonian_list[term][0]
@@ -78,7 +91,7 @@ class QITE:
 			return(circuit,registers)
 		circuit,registers = self.initial_state(circuit,registers)
 		time_evolution = TimeEvolutionOperator(self.time_evolution_list,self.dt,self.dt)
-		circuit,registers = time_evolution.simulate(circuit,registers)
+		circuit,registers = time_evolution(circuit,registers)
 		return(circuit,registers)
 
 

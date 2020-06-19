@@ -50,7 +50,7 @@ def QPE(circuit,registers, U):
 	t = len(registers[0])
 	for control in range(t-1,-1,-1):
 		circuit.h(registers[0][control])   
-		circuit, registers = U.simulate(circuit,registers,control,power=2**(t-1 - control))
+		circuit, registers = U(circuit,registers,control,power=2**(t-1 - control))
 	circuit, registers = QFT(circuit,registers,inverse=True)
 	return(circuit,registers)
 
@@ -110,7 +110,7 @@ class TimeEvolutionOperator:
 					circuit.rz(np.pi/2,registers[0][qubit])
 		return(circuit,registers)
 
-	def simulate(self,circuit,registers, power=1):
+	def __call__(self,circuit,registers, power=1):
 		"""
 		This function is used to start the time evolution simulation
 		See docstrings for the step function for variable explanation.
@@ -186,7 +186,7 @@ class ControlledTimeEvolutionOperator:
 				qubit= qubit_and_gate[0][0]
 				gate = qubit_and_gate[0][1]
 				if gate == 'x':
-					circuit.crx(2*dt*factor*power,registers[0][control], registers[1][qubit])
+					circuit.mcrx(2*dt*factor*power,[registers[0][control]], registers[1][qubit])
 				elif gate == 'y':
 					circuit.cry(2*dt*factor*power,registers[0][control], registers[1][qubit])
 				elif gate == 'z':
@@ -209,7 +209,7 @@ class ControlledTimeEvolutionOperator:
 					circuit.ch(registers[0][control],registers[1][qubit])
 					circuit.crz(np.pi/2,registers[0][control],registers[1][qubit])
 		return(circuit,registers)
-	def simulate(self,circuit,registers,control, power=1):
+	def __call__(self,circuit,registers,control, power=1):
 		"""
 		This function is used to start the time evolution simulation
 		See docstrings for the step function for variable explanation.
@@ -413,7 +413,7 @@ class UCCSD:
 		time_evolution = TimeEvolutionOperator(self.hamiltonian_list,self.dt,self.T)
 		for qubit in range(self.n_fermi,self.n_spin_orbitals):
 			circuit.x(registers[0][qubit])
-		circuit,registers = time_evolution.simulate(circuit,registers)
+		circuit,registers = time_evolution(circuit,registers)
 		return(circuit,registers)
 
 	def singles_operator(self,t):
@@ -553,7 +553,7 @@ class PairingUCCD:
 		time_evolution = TimeEvolutionOperator(self.hamiltonian_list,self.dt,self.T)
 		for qubit in range(n_fermi,n_spin_orbitals):
 			circuit.x(registers[0][qubit])
-		circuit,registers = time_evolution.simulate(circuit,registers)
+		circuit,registers = time_evolution(circuit,registers)
 		return(circuit,registers)
 
 	
@@ -594,7 +594,7 @@ class PairingUCCD:
 				idx += 8
 
 
-def hadamard_test(circuit,registers,hamiltonian_term,imag=True,shots=1000,ancilla_index=1,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None):
+def hadamard_test(circuit,registers,hamiltonian_term,imag=True,shots=1000,ancilla_index=-2,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None):
 	"""
 	Input:
 		circuit (qiskit QuantumCircuit) - Circuit to apply Hadamard test on.
@@ -610,12 +610,25 @@ def hadamard_test(circuit,registers,hamiltonian_term,imag=True,shots=1000,ancill
 	Output:
 		measurements (float) - The real or imaginary part.
 	"""
-	circuit.h(registers[-2][ancilla_index])
+	circuit.h(registers[ancilla_index][0])
 	if imag:
-		circuit.sdg(registers[-2][ancilla_index])
-	circuit,register = hamiltonian_term(circuit,registers)
-	circuit.h(registers[-2][ancilla_index])
-	circuit.measure(registers[-2][ancilla_index],registers[-1])
+		circuit.sdg(registers[ancilla_index][0])
+	if type(hamiltonian_term) == list:
+		factor = hamiltonian_term[0]
+		for qubit_and_gate in hamiltonian_term[1:]:
+			qubit = qubit_and_gate[0]
+			gate = qubit_and_gate[1]
+			if gate == 'x':
+				circuit.x(registers[0][qubit])
+			elif gate == 'y':
+				circuit.y(registers[0][qubit])
+			elif gate == 'z':
+				circuit.z(registers[0][qubit])
+	else:
+		circuit,register = hamiltonian_term(circuit,registers)
+		factor = hamiltonian_term.factor
+	circuit.h(registers[ancilla_index][0])
+	circuit.measure(registers[ancilla_index][0],registers[-1])
 	job = qk.execute(circuit, backend = backend, shots=shots,seed_simulator=seed_simulator,noise_model=noise_model)
 	result = job.result()
 	result = result.get_counts(circuit)
@@ -625,7 +638,7 @@ def hadamard_test(circuit,registers,hamiltonian_term,imag=True,shots=1000,ancill
 			measurements += value/shots
 		if key == '1':
 			measurements -= value/shots
-	return(measurements*hamiltonian_term.factor)
+	return(measurements*factor)
 
 
 def operator_product(operator_1, operator_2):

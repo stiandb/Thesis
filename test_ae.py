@@ -1,23 +1,14 @@
-from utils import AmplitudeEncoder
-import numpy as np
-import qiskit as qk
-np.random.seed(12)
+from utils import ControlledTimeEvolutionOperator
+import qiskit as qk 
 
-x = np.random.randn(4)
-amplitude_register = qk.QuantumRegister(2)
-classical_register = qk.ClassicalRegister(2)
-circuit = qk.QuantumCircuit(amplitude_register,classical_register)
-registers = [amplitude_register,classical_register]
+hamiltonian_list = [[3,[0,'x']],[-2,[5,'y'],[3,'z']],[2]]
+U = ControlledTimeEvolutionOperator(hamiltonian_list,dt=0.001,T=1)
 
+control_register = qk.QuantumRegister(2)
+evo_register = qk.QuantumRegister(6)
+ancilla_register = qk.QuantumRegister(1)
+classical_register = qk.QuantumRegister(4)
+circuit = qk.QuantumCircuit(control_register,evo_register,ancilla_register,classical_register)
+registers = [control_register,evo_register,ancilla_register,classical_register]
 
-encoder = AmplitudeEncoder(eps=1e-14)
-circuit,registers = encoder(circuit,registers,x,inverse=False)
-
-shots = 1000000
-circuit.measure(registers[0],registers[-1])
-job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=shots)
-result = job.result().get_counts(circuit)
-for key,value in result.items():
-	print(key,np.sqrt(value/shots))
-	
-print(x/np.sqrt(np.sum(x**2)))
+circuit,registers = U(circuit=circuit,registers=registers,control=1,power=2**6)

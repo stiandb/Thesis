@@ -25,7 +25,7 @@ class QATE:
 		self.backend=backend
 		self.noise_model=noise_model
 	
-	def trotter_step(self,circuit,registers,k):
+	def trotter_step(self,circuit,registers,k,steps):
 		"""
 		Input:
 			circuit (qiskit QuantumCircuit) - the circuit to apply the adiabatic time evolution to
@@ -34,6 +34,7 @@ class QATE:
 								The last register should be the classical register, while the second to last register 
 								should be the ancilla register to make the conditional operation required for the time evolution operation.
 			k (int) - step in the adiabatic time evolution
+			steps (int) - The number of steps to use in the time evolution operator
 
 		Output:
 			circuit (qiskit QuantumCircuit) - Circuit with applied adiabatic time evolution operator
@@ -47,14 +48,15 @@ class QATE:
 			H_1_temp[i][0] = self.H_1[i][0]*self.dt**2*k/self.t 
 		time_evolution_list = H_0_temp
 		time_evolution_list.extend(H_1_temp)
-		time_evolution = TimeEvolutionOperator(time_evolution_list,1,1)
+		time_evolution = TimeEvolutionOperator(time_evolution_list,1/steps,1)
 		circuit,registers = time_evolution.step(circuit,registers)
 		return(circuit,registers)
 
-	def simulate(self,classical_bits):
+	def simulate(self,classical_bits,steps=1):
 		"""
 		Input:
 			classical_bits (int) - The amount of classical bits / bits to measure
+			steps (int) - The number of steps to use in the time evolution operator
 		Output:
 			circuit (qiskit QuantumCircuit) - the circuit to apply the adiabatic time evolution to
 			registers (list) - List containing quantum registers and classical register. 
@@ -65,7 +67,7 @@ class QATE:
 		circuit,registers = initialize_circuit(self.n_qubits,1,classical_bits)
 		circuit,registers = self.initial_state(circuit,registers)
 		for k in range(self.iterations):
-			circuit,registers = self.trotter_step(circuit,registers,k)
+			circuit,registers = self.trotter_step(circuit,registers,k,steps)
 		return(circuit,registers)
 
 	def calculate_energy(self):
@@ -88,4 +90,6 @@ class QATE:
 				qubit_list.append(qubit)
 				circuit,registers = pauli_expectation_transformation(qubit,gate,circuit,registers)
 			E += measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model)
+			if not self.seed_simulator is None:
+				self.seed_simulator += 1
 		return(E)
