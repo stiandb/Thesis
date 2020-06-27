@@ -5,7 +5,6 @@ from matplotlib.pylab import *
 from HamiltonianSimulation import *
 
 
-
 np.random.seed(10202)
 
 u_qubits = 4

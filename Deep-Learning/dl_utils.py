@@ -20,6 +20,7 @@ class YRotation:
 			circuit.cry(weights[i],registers[0][i],registers[1][ancilla])
 		return(circuit,registers)
 
+
 class EulerRotation:
 	def __init__(self,bias=False):
 		self.bias = bias
