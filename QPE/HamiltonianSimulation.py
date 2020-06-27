@@ -3,7 +3,7 @@ sys.path.append('../')
 from utils import *
 
 class HamiltonianSimulation:
-	def __init__(self,u_qubits,t_qubits,hamiltonian_list,initial_state):
+	def __init__(self,u_qubits,t_qubits,hamiltonian_list,initial_state,shots=1000,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None,basis_gates=None):
 		self.hamiltonian_list = hamiltonian_list
 		self.u_qubits = u_qubits
 		self.t_qubits = t_qubits
@@ -11,6 +11,11 @@ class HamiltonianSimulation:
 		self.circuit,self.registers= initialize_circuit(u_qubits,1,t_qubits)
 		self.circuit.add_register(self.t_register)
 		self.initial_state = initial_state
+		self.shots=shots
+		self.backend = backend
+		self.seed_simulator=seed_simulator
+		self.noise_model=noise_model
+		self.basis_gates=basis_gates
 
 	def __call__(self,dt,t):
 		self.circuit,self.registers = self.initial_state(self.circuit,self.registers)
@@ -18,10 +23,10 @@ class HamiltonianSimulation:
 		U = ControlledTimeEvolutionOperator(self.hamiltonian_list,dt,t)
 		return(QPE(self.circuit,self.registers,U))
 
-	def measure_eigenvalues(self,dt,t,E_max,shots=1000,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None,basis_gates=None):
+	def measure_eigenvalues(self,dt,t,E_max):
 		self.circuit,self.registers = self.__call__(dt,t)
 		self.circuit.measure(self.registers[0],self.registers[-1])
-		job = qk.execute(self.circuit, backend = backend, shots=shots,seed_simulator=seed_simulator,noise_model=noise_model,basis_gates=basis_gates)
+		job = qk.execute(self.circuit, backend = self.backend, shots=self.shots,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates)
 		result = job.result()
 		result = result.get_counts(self.circuit)
 
