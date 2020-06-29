@@ -517,6 +517,9 @@ class EulerRotationAnsatz:
 def identity_circuit(circuit,registers):
 	return(circuit,registers)
 
+def identity_ansatz(theta,circuit,registers):
+	return(circuit,registers)
+
 def linear_entangler(circuit,registers):
 	"""
 	Entangles qubit i with qubit i+1 for all n qubits in the first element of registers

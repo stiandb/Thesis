@@ -9,6 +9,9 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split
 
 
+
+
+
 iris = load_iris()
 X = iris['data']
 y = iris['target']
@@ -43,5 +46,5 @@ y_pred = model.predict(X_test)
 y_pred = np.argmax(y_pred,axis=1)
 
 print('accuracy:', accuracy_score(y_test,y_pred))
-print(confusion_matrix(y_test,y_pred))
+print(confusion_matrix(y_test,y_pred))"""
 

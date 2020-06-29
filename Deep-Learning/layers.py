@@ -163,7 +163,7 @@ class AnsatzLinear:
 				job = qk.execute(circuit, backend = self.backend,seed_simulator=self.seed_simulator, shots=self.shots,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map).result()
 				if not self.error_mitigator is None:
 					n_qubits = circuit.n_qubits
-					meas_filter = error_mitigator(n_qubits,[-1],self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
+					meas_filter = self.error_mitigator(n_qubits,[-1],self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
 					result = meas_filter.apply(job)
 					result = result.get_counts(circuit)
 				else:
@@ -270,12 +270,13 @@ class RotationLinear:
 					classical_register = qk.ClassicalRegister(self.classical_bits)
 				else:
 					classical_register = qk.ClassicalRegister(n_parallel)
-				ancilla_register = qk.QuantumRegister(n_parallel)
 				circuit = qk.QuantumCircuit(amplitude_register,classical_register)
-				registers = [amplitude_register,ancilla_register,classical_register]
+				registers = [amplitude_register,classical_register]
 				encoder = AmplitudeEncoder()
 				circuit, registers = encoder(circuit,registers,x[sample,:])
+				ancilla_register = qk.QuantumRegister(n_parallel)
 				circuit.add_register(ancilla_register)
+				registers.insert(1,ancilla_register)
 				for j in range(n_parallel):
 					circuit,registers = self.rotation(self.w[i+j,:],j,circuit,registers)
 				if not self.classical_bits is None and (self.n_parallel == self.n_outputs):
@@ -287,7 +288,7 @@ class RotationLinear:
 				job = qk.execute(circuit, backend = self.backend,seed_simulator=self.seed_simulator, shots=self.shots,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map).result()
 				if not self.error_mitigator is None:
 					n_qubits = circuit.n_qubits
-					meas_filter = error_mitigator(n_qubits,list(range(n_qubits-n_parallel,n_qubits)),self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
+					meas_filter = self.error_mitigator(n_qubits,list(range(n_qubits-n_parallel,n_qubits)),self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
 					result = meas_filter.apply(job)
 					result = result.get_counts(circuit)
 				else:
@@ -433,7 +434,7 @@ class AnsatzRotationLinear:
 				job = qk.execute(circuit, backend = self.backend,seed_simulator=self.seed_simulator,shots=self.shots,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map).result()
 				if not self.error_mitigator is None:
 					n_qubits = circuit.n_qubits
-					meas_filter = error_mitigator(n_qubits,list(range(n_qubits-n_parallel,n_qubits)),self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
+					meas_filter = self.error_mitigator(n_qubits,list(range(n_qubits-n_parallel,n_qubits)),self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
 					result = meas_filter.apply(job)
 					result = result.get_counts(circuit)
 				else:
@@ -606,7 +607,7 @@ class IntermediateAnsatzRotationLinear:
 				job = qk.execute(circuit, backend = self.backend,seed_simulator=self.seed_simulator,shots=self.shots,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map).result()
 				if not self.error_mitigator is None:
 					n_qubits = circuit.n_qubits
-					meas_filter = error_mitigator(n_qubits,list(range(n_qubits-n_parallel,n_qubits)),self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
+					meas_filter = self.error_mitigator(n_qubits,list(range(n_qubits-n_parallel,n_qubits)),self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
 					result = meas_filter.apply(job)
 					result = result.get_counts(circuit)
 				else:
