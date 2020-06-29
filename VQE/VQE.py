@@ -79,7 +79,7 @@ class VQE:
 		self.energies.append(E)
 		return(E)
 
-	def classical_optimization(self,theta,method='L-BFGS-B',max_iters = 1000):
+	def classical_optimization(self,theta,method='L-BFGS-B',max_iters = 100,max_fev=None):
 		"""
 		Performs a classical optimization method to find the optimal parameters.
 		This function is used directly after initialization of class.
@@ -91,10 +91,14 @@ class VQE:
 		Output:
 			theta (numpy array) - The optimal parameters  
 		"""
+		if not max_fev is None:
+			options = {'disp':True,'maxiter':max_iters,'maxfev':max_fev}
+		else:
+			options = {'disp':True,'maxiter':max_iters}
 		if method == 'L-BFGS-B':
 			bounds = [(0,2*np.pi) for i in theta]
 		else:
 			bounds = None
-		result = minimize(self.expectation_value,theta,bounds = bounds,method=method,options={'disp':True,'maxiter':max_iters})
+		result = minimize(self.expectation_value,theta,bounds = bounds,method=method,options=options)
 		theta = result.x
 		return(theta)

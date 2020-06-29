@@ -40,7 +40,7 @@ class HamiltonianSimulation:
 			qubit_list = list(range(len(registers[0])),n_qubits)
 			meas_filter = error_mitigator(n_qubits,qubit_list,self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
 			result = meas_filter.apply(job)
-			result = result.get_counts(circuit)
+			result = result.get_counts(0)
 		else:
 			result = job.get_counts(circuit)
 		measurements = []
