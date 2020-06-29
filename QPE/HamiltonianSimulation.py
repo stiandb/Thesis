@@ -3,12 +3,12 @@ sys.path.append('../')
 from utils import *
 
 class HamiltonianSimulation:
-	def __init__(self,u_qubits,t_qubits,hamiltonian_list,initial_state,shots=1000,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None,basis_gates=None):
+	def __init__(self,u_qubits,t_qubits,hamiltonian_list,initial_state,shots=1000,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None,basis_gates=None,coupling_map=None,transpile=False,seed_transpiler=None,optimization_level=1,error_mitigator=None):
 		self.hamiltonian_list = hamiltonian_list
 		self.u_qubits = u_qubits
 		self.t_qubits = t_qubits
 		self.t_register = qk.QuantumRegister(t_qubits)
-		self.circuit,self.registers= initialize_circuit(u_qubits,1,t_qubits)
+		self.circuit,self.registers= initialize_circuit(u_qubits,0,t_qubits)
 		self.circuit.add_register(self.t_register)
 		self.initial_state = initial_state
 		self.shots=shots
@@ -16,6 +16,11 @@ class HamiltonianSimulation:
 		self.seed_simulator=seed_simulator
 		self.noise_model=noise_model
 		self.basis_gates=basis_gates
+		self.transpile=transpile
+		self.seed_transpiler=seed_transpiler
+		self.optimization_level=optimization_level
+		self.coupling_map = coupling_map
+		self.error_mitigator = error_mitigator
 
 	def __call__(self,dt,t):
 		self.circuit,self.registers = self.initial_state(self.circuit,self.registers)
@@ -26,10 +31,18 @@ class HamiltonianSimulation:
 	def measure_eigenvalues(self,dt,t,E_max):
 		self.circuit,self.registers = self.__call__(dt,t)
 		self.circuit.measure(self.registers[0],self.registers[-1])
-		job = qk.execute(self.circuit, backend = self.backend, shots=self.shots,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates)
-		result = job.result()
-		result = result.get_counts(self.circuit)
+		if self.transpile:
+			self.circuit = qk.compiler.transpile(self.circuit,backend=self.backend,backend_properties=self.backend.properties(),seed_transpiler=self.seed_transpiler,optimization_level=self.optimization_level,basis_gates=self.basis_gates,coupling_map=self.coupling_map)
+		job = qk.execute(self.circuit, backend = self.backend, shots=self.shots,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map).result()
 
+		if not self.error_mitigator is None:
+			n_qubits = circuit.num_qubits
+			qubit_list = list(range(len(registers[0])),n_qubits)
+			meas_filter = error_mitigator(n_qubits,qubit_list,self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
+			result = meas_filter.apply(job)
+			result = result.get_counts(circuit)
+		else:
+			result = job.get_counts(circuit)
 		measurements = []
 		for key,value in result.items():
 			key_ = key[::-1]

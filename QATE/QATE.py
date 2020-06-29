@@ -4,7 +4,7 @@ from utils import *
 from copy import deepcopy
 
 class QATE:
-	def __init__(self,n_qubits,H_0,H_1,initial_state,dt,t,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None):
+	def __init__(self,n_qubits,H_0,H_1,initial_state,dt,t,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,coupling_map=None,seed_transpiler=None,transpile=False,optimization_level=1,error_mitigator=None):
 		"""
 		Input:
 			n_qubits (int) - The number of qubits in the circuit
@@ -25,6 +25,11 @@ class QATE:
 		self.backend=backend
 		self.noise_model=noise_model
 		self.basis_gates = basis_gates
+		self.transpile=transpile
+		self.seed_transpiler=seed_transpiler
+		self.optimization_level=optimization_level
+		self.coupling_map=coupling_map
+		self.error_mitigator = error_mitigator
 	
 	def trotter_step(self,circuit,registers,k,steps):
 		"""
@@ -90,7 +95,7 @@ class QATE:
 			for qubit,gate in h_m[1:]:
 				qubit_list.append(qubit)
 				circuit,registers = pauli_expectation_transformation(qubit,gate,circuit,registers)
-			E += measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model,basis_gates=self.basis_gates)
+			E += measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,transpile=self.transpile,seed_transpiler=self.seed_transpiler,optimization_level=self.optimization_level,error_mitigator=self.error_mitigator)
 			if not self.seed_simulator is None:
 				self.seed_simulator += 1
 		return(E)

@@ -20,6 +20,20 @@ class YRotation:
 			circuit.cry(weights[i],registers[0][i],registers[1][ancilla])
 		return(circuit,registers)
 
+class YRotationZeroOne:
+	def __init__(self,bias=False):
+		self.bias = bias
+	def __call__(self,weights,ancilla,circuit,registers):
+		if self.bias:
+			circuit.ry(weights[-1],registers[1][ancilla])
+		n = len(registers[0])
+		for i in range(n):
+			circuit.cry(weights[i],registers[0][i],registers[1][ancilla])
+		for i in range(n):
+			circuit.x(registers[0][i])
+			circuit.cry(weights[n+i],registers[0][i],registers[1][ancilla])
+		return(circuit,registers)
+
 
 class EulerRotation:
 	def __init__(self,bias=False):

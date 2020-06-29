@@ -6,7 +6,7 @@ from inspect import getfullargspec
 
 
 class VQE:
-	def __init__(self,hamiltonian_list,ansatz,n_qubits,ancilla=0,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,max_energy=False):
+	def __init__(self,hamiltonian_list,ansatz,n_qubits,ancilla=0,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,max_energy=False,transpile=False,seed_transpiler=None,optimization_level=1,coupling_map=None,error_mitigator=None):
 		"""
 		Inputs:
 			hamiltonian_list (list) - List containing each term of the hamiltionian
@@ -32,11 +32,18 @@ class VQE:
 		self.ancilla=ancilla
 		self.noise_model=noise_model
 		self.basis_gates = basis_gates
+		self.transpile=transpile
+		self.seed_transpiler=seed_transpiler
+		self.optimization_level=optimization_level
+		self.coupling_map=coupling_map
 		spec = getfullargspec(self.ansatz)
 		if 'classical_bits' in spec[0]:
 			self.set_classical_bits = True
 		else:
 			self.set_classical_bits = False
+		self.energies = []
+		self.error_mitigator = error_mitigator
+
 
 
 
@@ -63,12 +70,13 @@ class VQE:
 			for qubit,gate in pauli_string[1:]:
 				circuit,registers = pauli_expectation_transformation(qubit,gate,circuit,registers)
 				qubit_list.append(qubit)
-			E += measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,shots=self.shots,noise_model=self.noise_model,basis_gates=self.basis_gates)
+			E += measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,shots=self.shots,noise_model=self.noise_model,basis_gates=self.basis_gates,transpile=self.transpile,optimization_level=self.optimization_level,seed_transpiler=self.seed_transpiler,coupling_map=self.coupling_map,error_mitigator=self.error_mitigator)
 			if not self.seed_simulator is None:
 				self.seed_simulator += 1
 		print('<E> = ', E)
 		if self.max_energy:
 			E = -E
+		self.energies.append(E)
 		return(E)
 
 	def classical_optimization(self,theta,method='L-BFGS-B',max_iters = 1000):

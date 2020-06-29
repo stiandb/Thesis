@@ -1,6 +1,8 @@
 import qiskit as qk
 import numpy as np
 from copy import deepcopy
+from qiskit.ignis.mitigation.measurement import complete_meas_cal, CompleteMeasFitter
+import qiskit.ignis.verification.randomized_benchmarking as rb
 
 
 def QFT(circuit,registers,inverse=False):
@@ -54,7 +56,9 @@ def QPE(circuit,registers, U):
 	circuit, registers = QFT(circuit,registers,inverse=True)
 	return(circuit,registers)
 
-class TimeEvolutionOperator:
+
+
+class TimeEvolutionOperatorAncilla:
 	def __init__(self,hamiltonian_list,dt,T):
 		self.hamiltonian_list = hamiltonian_list
 		self.dt = dt
@@ -119,6 +123,76 @@ class TimeEvolutionOperator:
 			circuit,registers = self.step(circuit,registers,power=power)
 		return(circuit,registers)
 
+
+class TimeEvolutionOperator:
+	def __init__(self,hamiltonian_list,dt,T):
+		self.hamiltonian_list = hamiltonian_list
+		self.dt = dt
+		self.T = T
+		self.iters = int(self.T/self.dt)
+
+	def step(self,circuit,registers,power=1):
+		"""
+		circuit (Qiskit QuantumCircuit) - 	quantum circuit to apply the time evolution operator to.
+		registers (list) - 					List containing quantum registers and classical register. 
+											The first register should be the register to apply the time evolution to.
+											The last register should be the classical register.
+		power (int) - 						What power to put the operator to (U^(power))
+		"""
+		dt = self.dt
+		for hamiltonian_term in self.hamiltonian_list:
+			factor = hamiltonian_term[0]
+			if factor == 0:
+				continue
+			qubit_and_gate = hamiltonian_term[1:]
+			target = qubit_and_gate[0][0]
+			if len(qubit_and_gate) == 0:
+				circuit.u1(-dt*power*factor, registers[0][0])
+				circuit.x(registers[0][0])
+				circuit.u1(-dt*power*factor, registers[0][0])
+				circuit.x(registers[0][0])
+				continue 
+			elif len(qubit_and_gate) == 1:
+				qubit= qubit_and_gate[0][0]
+				gate = qubit_and_gate[0][1]
+				if gate == 'x':
+					circuit.rx(2*dt*factor*power,registers[0][qubit])
+				elif gate == 'y':
+					circuit.ry(2*dt*factor*power,registers[0][qubit])
+				elif gate == 'z':
+					circuit.rz(2*dt*factor*power,registers[0][qubit])
+				continue
+
+			for qubit, gate in qubit_and_gate:
+				if gate == 'x':
+					circuit.h(registers[0][qubit])
+				elif gate == 'y':
+					circuit.rz(-np.pi/2,registers[0][qubit])
+					circuit.h(registers[0][qubit])
+				if qubit != target:
+					circuit.cx(registers[0][qubit],registers[0][target])
+			circuit.rz(2*dt*factor*power,registers[0][target])
+			qubit_and_gate.reverse()
+			for qubit, gate in qubit_and_gate:
+				if qubit != target:
+					circuit.cx(registers[0][qubit],registers[0][target])
+				if gate == 'x':
+					circuit.h(registers[0][qubit])
+				if gate == 'y':
+					circuit.h(registers[0][qubit])
+					circuit.rz(np.pi/2,registers[0][qubit])
+			qubit_and_gate.reverse()
+		return(circuit,registers)
+
+	def __call__(self,circuit,registers, power=1):
+		"""
+		This function is used to start the time evolution simulation
+		See docstrings for the step function for variable explanation.
+		"""
+		for i in range(self.iters):
+			circuit,registers = self.step(circuit,registers,power=power)
+		return(circuit,registers)
+
 def pairing_initial_state(circuit,registers):
 	"""
 	Sets up the initial state for QPE an QITE for the pairing model
@@ -137,6 +211,18 @@ def pairing_initial_state(circuit,registers):
 		circuit.h(registers[0][i])
 		circuit.cx(registers[0][i],registers[0][i+1])
 	return(circuit, registers)
+
+def pairing_ansatz(theta,circuit,registers):
+	circuit.x(registers[0][2])
+	circuit.x(registers[0][3])
+	circuit.ry(theta[0],registers[0][0])
+	circuit.cx(registers[0][0],registers[0][1])
+	circuit.cx(registers[0][1],registers[0][2])
+	circuit.x(registers[0][2])
+	circuit.cx(registers[0][2],registers[0][3])
+	circuit.x(registers[0][2])
+	return(circuit,registers)
+
 
 class ControlledTimeEvolutionOperator:
 	"""
@@ -176,6 +262,7 @@ class ControlledTimeEvolutionOperator:
 			if factor == 0:
 				continue
 			qubit_and_gate = hamiltonian_term[1:]
+			target = qubit_and_gate[0][0]
 			if len(qubit_and_gate) == 0:
 				circuit.cu1(-dt*power*factor, registers[0][control],registers[1][0])
 				circuit.x(registers[1][0])
@@ -199,15 +286,19 @@ class ControlledTimeEvolutionOperator:
 				elif gate == 'y':
 					circuit.crz(-np.pi/2,registers[0][control],registers[1][qubit])
 					circuit.ch(registers[0][control],registers[1][qubit])
-				circuit.ccx(registers[0][control],registers[1][qubit],registers[-2][0])
-			circuit.crz(2*dt*factor*power,registers[0][control],registers[-2][0])
+				if qubit != target:
+					circuit.ccx(registers[0][control],registers[1][qubit],registers[1][target])
+			circuit.crz(2*dt*factor*power,registers[0][control],registers[1][target])
+			qubit_and_gate.reverse()
 			for qubit, gate in qubit_and_gate:
-				circuit.ccx(registers[0][control],registers[1][qubit],registers[-2][0])
+				if qubit != target:
+					circuit.ccx(registers[0][control],registers[1][qubit],registers[1][target])
 				if gate == 'x':
 					circuit.ch(registers[0][control],registers[1][qubit])
 				if gate == 'y':
 					circuit.ch(registers[0][control],registers[1][qubit])
 					circuit.crz(np.pi/2,registers[0][control],registers[1][qubit])
+			qubit_and_gate.reverse()
 		return(circuit,registers)
 	def __call__(self,circuit,registers,control, power=1):
 		"""
@@ -273,13 +364,58 @@ def pauli_expectation_transformation(qubit,gate,circuit,registers):
 			circuit.z(registers[0][qubit])
 		return(circuit,registers)
 
-def measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,shots=1000):
+class ErrorMitigation:
+	def __init__(self):
+		self.filters = {}
+
+	def __call__(self,n_qubits,qubit_list,backend,seed_simulator=None,noise_model=None,basis_gates=None,coupling_map=None,shots=1000,transpile=False,seed_transpiler=None,optimization_level=1,initial_layout=None):
+		try:
+			self.filters[str(qubit_list).strip('[]')]
+		except:
+			self.filters[str(qubit_list).strip('[]')] = self.get_meas_fitter(n_qubits,qubit_list,backend,seed_simulator=seed_simulator,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map,shots=1000,transpile=transpile,seed_transpiler=seed_transpiler,optimization_level=optimization_level,initial_layout=initial_layout).filter
+		meas_filter=self.filters[str(qubit_list).strip('[]')]
+		return(meas_filter)
+
+	def get_meas_fitter(self,n_qubits,qubit_list,backend,seed_simulator=None,noise_model=None,basis_gates=None,coupling_map=None,shots=1000,transpile=False,seed_transpiler=None,optimization_level=1,initial_layout=None):
+		register = qk.QuantumRegister(n_qubits)
+		meas_calibs, state_labels = complete_meas_cal(qr=register,circlabel='mcal')#complete_meas_cal(qubit_list,qr=register,circlabel='mcal')
+		if transpile:
+			meas_calibs = qk.compiler.transpile(meas_calibs,backend=backend,backend_properties=backend.properties(),seed_transpiler=seed_transpiler,optimization_level=optimization_level,basis_gates=basis_gates,coupling_map=coupling_map,initial_layout=initial_layout)
+			#for circuit in meas_calibs:
+				#print(circuit._layout.get_virtual_bits())
+		job = qk.execute(meas_calibs,
+					  backend=backend,
+					  shots=shots,
+					  noise_model=noise_model,
+					  coupling_map=coupling_map,
+					  basis_gates=basis_gates,
+					  seed_simulator=seed_simulator
+					  )
+		calibration_results = job.result()
+		meas_fitter = CompleteMeasFitter(calibration_results, state_labels, circlabel='mcal')
+		meas_fitter = meas_fitter.subset_fitter(qubit_list)
+		return(meas_fitter)
+
+
+def measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,shots=1000,transpile=False,seed_transpiler=None,optimization_level=1,coupling_map=None,error_mitigator=None,initial_layout=None):
 	"""
 	Measures qubits and calculates eigenvalues
 	"""
 	circuit.measure([registers[0][qubit] for qubit in qubit_list],registers[-1])
-	job = qk.execute(circuit, backend = backend,seed_simulator=seed_simulator,shots=shots,noise_model=noise_model,basis_gates=basis_gates)
-	result = job.result().get_counts(circuit)
+	if transpile:
+		circuit = qk.compiler.transpile(circuit,backend=backend,backend_properties=backend.properties(),seed_transpiler=seed_transpiler,optimization_level=optimization_level,basis_gates=basis_gates,coupling_map=coupling_map)
+		#print('circuit layout',circuit._layout.get_virtual_bits())
+	job = qk.execute(circuit, backend = backend,seed_simulator=seed_simulator,shots=shots,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map).result()
+	if not error_mitigator is None:
+		try:
+			n_qubits = circuit.n_qubits
+		except:
+			n_qubits = circuit.num_qubits
+		meas_filter = error_mitigator(n_qubits,qubit_list,backend,seed_simulator=seed_simulator,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map,shots=shots,transpile=transpile,seed_transpiler=seed_transpiler,optimization_level=optimization_level,initial_layout=initial_layout)
+		result = meas_filter.apply(job)
+		result = result.get_counts(circuit)
+	else:
+		result = job.get_counts(circuit)
 	E = 0
 	for key, value in result.items():
 		key1 = key[::-1]
@@ -570,6 +706,7 @@ class PairingUCCD:
 		for i in range(0,n_fermi,2):
 			for a in range(n_fermi,n_spin_orbitals,2):
 				self.hamiltonian_list.append([t[idx]/8,[i,'x'],[i+1,'x'],[a,'y'],[a+1,'x']])
+				"""
 				self.hamiltonian_list.append([t[idx]/8,[i,'y'],[i+1,'x'],[a,'y'],[a+1,'y']])
 				self.hamiltonian_list.append([t[idx]/8,[i,'x'],[i+1,'y'],[a,'y'],[a+1,'y']])
 				self.hamiltonian_list.append([t[idx]/8,[i,'x'],[i+1,'x'],[a,'x'],[a+1,'y']])
@@ -577,6 +714,8 @@ class PairingUCCD:
 				self.hamiltonian_list.append([-t[idx]/8,[i,'x'],[i+1,'y'],[a,'x'],[a+1,'x']])
 				self.hamiltonian_list.append([-t[idx]/8,[i,'y'],[i+1,'y'],[a,'y'],[a+1,'x']])
 				self.hamiltonian_list.append([-t[idx]/8,[i,'y'],[i+1,'y'],[a,'x'],[a+1,'y']])
+				"""
+				idx+=1
 
 
 	def replace_parameters(self,t):
@@ -586,6 +725,7 @@ class PairingUCCD:
 		idx = 0
 		for i in range(0,self.n_fermi,2):
 			for a in range(self.n_fermi,self.n_spin_orbitals,2):
+				"""
 				self.hamiltonian_list[idx][0] = t[int(idx/8)]/8
 				self.hamiltonian_list[idx+1][0] = t[int(idx/8)]/8
 				self.hamiltonian_list[idx+2][0] = t[int(idx/8)]/8
@@ -595,9 +735,14 @@ class PairingUCCD:
 				self.hamiltonian_list[idx+6][0] = -t[int(idx/8)]/8
 				self.hamiltonian_list[idx+7][0] = -t[int(idx/8)]/8
 				idx += 8
+				self.hamiltonian_list[idx][0] = t[int(idx/8)]/8
+				"""
 
+				self.hamiltonian_list[idx][0] = t[idx]/8
+				idx += 1
+				
 
-def hadamard_test(circuit,registers,hamiltonian_term,imag=True,shots=1000,ancilla_index=-2,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None,basis_gates=None):
+def hadamard_test(circuit,registers,hamiltonian_term,imag=True,shots=1000,ancilla_index=-2,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None,basis_gates=None,transpile=False,seed_transpiler=None,optimization_level=1,coupling_map=None,error_mitigator=None):
 	"""
 	Input:
 		circuit (qiskit QuantumCircuit) - Circuit to apply Hadamard test on.
@@ -632,9 +777,15 @@ def hadamard_test(circuit,registers,hamiltonian_term,imag=True,shots=1000,ancill
 		factor = hamiltonian_term.factor
 	circuit.h(registers[ancilla_index][0])
 	circuit.measure(registers[ancilla_index][0],registers[-1])
-	job = qk.execute(circuit, backend = backend, shots=shots,seed_simulator=seed_simulator,noise_model=noise_model,basis_gates=basis_gates)
-	result = job.result()
-	result = result.get_counts(circuit)
+	if transpile:
+		circuit = qk.compiler.transpile(circuit,backend=backend,backend_properties=backend.properties(),seed_transpiler=seed_transpiler,optimization_level=optimization_level,basis_gates=basis_gates,coupling_map=coupling_map)
+	job = qk.execute(circuit, backend = backend, shots=shots,seed_simulator=seed_simulator,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map).result()
+	if not error_mitigator is None:
+		meas_filter = error_mitigator(circuit.num_qubits,[-1],backend,seed_simulator=seed_simulator,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map,shots=shots)
+		result = meas_filter.apply(job)
+		result = result.get_counts(circuit)
+	else:
+		result = job.get_counts(circuit)
 	measurements = 0
 	for key,value in result.items():
 		if key == '0':
@@ -851,7 +1002,7 @@ class AmplitudeEncoder:
 		self.usage = True
 		return(circuit,registers)			
 				
-def squared_inner_product(x,y,circuit,registers,shots=1000,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None,basis_gates=None):
+def squared_inner_product(x,y,circuit,registers,shots=1000,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None,basis_gates=None,transpile=False,seed_transpiler=None,optimization_level=1,coupling_map=None,error_mitigator=None):
 	"""
 	Calculates the squared inner product of two arbitrary vectors.
 	Input:
@@ -873,14 +1024,22 @@ def squared_inner_product(x,y,circuit,registers,shots=1000,backend=qk.Aer.get_ba
 		circuit.x(registers[0][i])
 	circuit.mcrx(np.pi,[registers[0][i] for i in range(len(registers[0]))],ancilla_register[0])
 	circuit.measure(ancilla_register,registers[-1])
-	job = qk.execute(circuit, backend = backend, shots=shots,seed_simulator=seed_simulator,noise_model=noise_model,basis_gates=basis_gates)
-	result = job.result().get_counts(circuit)
+	if transpile:
+		circuit = qk.compiler.transpile(circuit,backend=backend,backend_properties=backend.properties(),seed_transpiler=seed_transpiler,optimization_level=optimization_level,basis_gates=basis_gates,coupling_map=coupling_map)
+	job = qk.execute(circuit, backend = backend, shots=shots,seed_simulator=seed_simulator,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map).result()
+	if not error_mitigator is None:
+		meas_filter = error_mitigator(circuit.num_qubits,[-1],backend,seed_simulator=seed_simulator,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map,shots=shots)
+		result = meas_filter.apply(job)
+		result = result.get_counts(circuit)
+	else:
+		result = job.get_counts(circuit)
 	inner_product = 0
 	for key,value in result.items():
 		if key == '1':
 			inner_product += value
 	inner_product /= shots
 	return(inner_product)
+
 
 
 
