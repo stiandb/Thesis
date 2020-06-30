@@ -6,7 +6,11 @@ class Utils:
 		w_idx = 0
 		w = w.flatten()
 		for layer in self.layers:
-			w_idx = layer.set_weights(w,w_idx)
+			if type(layer) is list:
+				for sub_layer in layer:
+					w_idx = sub_layer.set_weights(w,w_idx)
+			else:
+				w_idx = layer.set_weights(w,w_idx)
 
 
 class YRotation:

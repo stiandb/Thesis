@@ -121,7 +121,7 @@ class AnsatzLinear:
 	def __init__(self,n_inputs=None,n_outputs=None,n_weights=None,ansatz=None,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,coupling_map=None,transpile=False,seed_transpiler=None,optimization_level=1,error_mitigator=None):
 		self.shots = shots
 		self.n_inputs = n_inputs
-		self.n_qubits = int(np.ceil(np.log2(n_inputs)))
+		self.n_qubits = int(np.ceil(np.log2(n_inputs))) if n_inputs > 1 else 1
 		self.n_outputs = n_outputs
 		self.n_weights = n_weights
 		self.w = np.random.randn(n_outputs,n_weights)
@@ -233,7 +233,7 @@ class RotationLinear:
 	def __init__(self,n_inputs=None,n_outputs=None,n_weights=None,rotation=None,n_parallel=1,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,classical_bits=None,coupling_map=None,transpile=False,seed_transpiler=None,optimization_level=1,error_mitigator=None):
 		self.shots = shots
 		self.n_inputs = n_inputs
-		self.n_qubits = int(np.ceil(np.log2(n_inputs)))
+		self.n_qubits = int(np.ceil(np.log2(n_inputs))) if n_inputs > 1 else 1
 		self.n_outputs = n_outputs
 		self.n_weights = n_weights
 		self.w = np.random.randn(n_outputs,n_weights)
@@ -290,7 +290,7 @@ class RotationLinear:
 					n_qubits = circuit.n_qubits
 					meas_filter = self.error_mitigator(n_qubits,list(range(n_qubits-n_parallel,n_qubits)),self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
 					result = meas_filter.apply(job)
-					result = result.get_counts(circuit)
+					result = result.get_counts(0)
 				else:
 					result = job.get_counts(circuit)
 				out = np.zeros(n_parallel)
@@ -364,7 +364,7 @@ class AnsatzRotationLinear:
 	def __init__(self,n_inputs=None,n_outputs=None,n_weights_a=None,n_weights_r=None,ansatz=None,rotation=None,n_parallel = 1,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,classical_bits=None,coupling_map=None,transpile=False,seed_transpiler=None,optimization_level=1,error_mitigator=None):
 		self.shots = shots
 		self.n_inputs = n_inputs
-		self.n_qubits = int(np.ceil(np.log2(n_inputs)))
+		self.n_qubits = int(np.ceil(np.log2(n_inputs))) if n_inputs > 1 else 1
 		self.n_outputs = n_outputs
 		self.w_r = 2*np.pi*np.random.randn(n_outputs,n_weights_r)
 		self.n_parallel = n_parallel
@@ -436,7 +436,7 @@ class AnsatzRotationLinear:
 					n_qubits = circuit.n_qubits
 					meas_filter = self.error_mitigator(n_qubits,list(range(n_qubits-n_parallel,n_qubits)),self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
 					result = meas_filter.apply(job)
-					result = result.get_counts(circuit)
+					result = result.get_counts(0)
 				else:
 					result = job.get_counts(circuit)
 				out = np.zeros(n_parallel)
@@ -609,7 +609,7 @@ class IntermediateAnsatzRotationLinear:
 					n_qubits = circuit.n_qubits
 					meas_filter = self.error_mitigator(n_qubits,list(range(n_qubits-n_parallel,n_qubits)),self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
 					result = meas_filter.apply(job)
-					result = result.get_counts(circuit)
+					result = result.get_counts(0)
 				else:
 					result = job.get_counts(circuit)
 				out = np.zeros(n_parallel)

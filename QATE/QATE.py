@@ -58,7 +58,7 @@ class QATE:
 		circuit,registers = time_evolution.step(circuit,registers)
 		return(circuit,registers)
 
-	def simulate(self,classical_bits,steps=1):
+	def simulate(self,classical_bits,steps=1,early_stopping=None):
 		"""
 		Input:
 			classical_bits (int) - The amount of classical bits / bits to measure
@@ -72,11 +72,15 @@ class QATE:
 		"""
 		circuit,registers = initialize_circuit(self.n_qubits,1,classical_bits)
 		circuit,registers = self.initial_state(circuit,registers)
-		for k in range(self.iterations):
+		if early_stopping is None:
+			iters = self.iterations+1
+		else:
+			iters = early_stopping
+		for k in range(iters):
 			circuit,registers = self.trotter_step(circuit,registers,k,steps)
 		return(circuit,registers)
 
-	def calculate_energy(self):
+	def calculate_energy(self,early_stopping=None):
 		"""
 		Output:
 			E (float) - The energy for the hamiltonian we wish to solve for
@@ -91,7 +95,7 @@ class QATE:
 				E += factor
 				continue
 			qubit_list = []
-			circuit,registers = self.simulate(classical_bits)
+			circuit,registers = self.simulate(classical_bits,early_stopping=early_stopping)
 			for qubit,gate in h_m[1:]:
 				qubit_list.append(qubit)
 				circuit,registers = pauli_expectation_transformation(qubit,gate,circuit,registers)

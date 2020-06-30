@@ -9,7 +9,7 @@ np.random.seed(10202)
 
 
 u_qubits = 4
-t_qubits = 6#8
+t_qubits = 8
 
 delta = 1
 g = 1
@@ -18,7 +18,7 @@ E_max = 2
 hamiltonian_list[-1][0] -= E_max
 
 dt = 0.005
-t = 50*dt#100*dt
+t = 100*dt
 
 for noise_model,basis_gates,coupling_map in [[noise,gate,Map],[None,None,None]]:
 	if not noise_model is None:

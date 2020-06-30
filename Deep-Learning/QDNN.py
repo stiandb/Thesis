@@ -32,12 +32,20 @@ class QDNN(Utils):
 			x (numpy array) - The output from the neural network.
 		"""
 		for layer in self.layers:
-			X = layer(X)
+			if type(layer) is list:
+				X_ = []
+				idx=0
+				for sub_layer in layer:
+					X_.append(sub_layer(X[:,idx:idx+sub_layer.n_qubits]))
+					idx += sub_layer.n_qubits
+				X = np.hstack(X_)
+			else:
+				X = layer(X)
 		if self.classification:
 			X = X/(np.sum(X,axis=1).reshape(X.shape[0],1) + 1e-14)
 		return(X)
 
-	def fit(self,X,y,X_val=None,y_val=None,method='Powell',max_iters = 10000,tol=1e-14,seed=None):
+	def fit(self,X,y,X_val=None,y_val=None,method='Powell',max_iters = 1000,max_fev=None,tol=1e-14,seed=None):
 		"""
 		Uses classical optimization to train the neural network.
 		Input:
@@ -49,11 +57,19 @@ class QDNN(Utils):
 		"""
 		if not seed is None:
 			np.random.seed(seed)
+		if not max_fev is None:
+			options = {'disp':True,'maxiter':max_iters,'maxfev':max_fev}
+		else:
+			options = {'disp':True,'maxiter':max_iters}
 		self.n_weights = 0
 		for layer in self.layers:
-			self.n_weights += layer.w_size
+			if type(layer) is list:
+				for sub_layer in layer:
+					self.n_weights += sub_layer.w_size
+			else:
+				self.n_weights += layer.w_size
 		w = np.random.randn(self.n_weights)
-		w = minimize(self.calculate_loss,w,args=(X,y,X_val,y_val),method=method,options={'disp':True,'maxiter':max_iters},tol=tol).x
+		w = minimize(self.calculate_loss,w,args=(X,y,X_val,y_val),method=method,options=options,tol=tol).x
 		self.set_weights(self.w_opt)
 		self.loss_train = np.array(self.loss_train)
 		self.loss_val = np.array(self.loss_val)

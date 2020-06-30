@@ -906,10 +906,17 @@ class AmplitudeEncoder:
 		Input:
 			X (numpy array) - Array containing dataset to encode into the quantum state
 		"""
-
+		if X.flatten().shape[0] == 1:
+			X_ = np.zeros(2)
+			X_[0] = X[0]
+			X_[1] = 0.5
+			X = X_
 		X = X/(np.sqrt(np.sum(X**2))+self.eps)
 		values = list(X.copy().flatten())
-		self.n_qubits = int(np.ceil(np.log2(len(values)))) if self.n_qubits is None else self.n_qubits
+		if self.n_qubits is None:
+			self.n_qubits = int(np.ceil(np.log2(len(values))))
+		else:
+			self.n_qubits
 		n_ancilla = 1 if (self.n_qubits - 2 <= 1) else (self.n_qubits - 2)
 		ancilla_register = qk.QuantumRegister(n_ancilla)
 		keys = self.convert_binary(range(len(values)))

@@ -36,7 +36,10 @@ class HamiltonianSimulation:
 		job = qk.execute(self.circuit, backend = self.backend, shots=self.shots,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map).result()
 
 		if not self.error_mitigator is None:
-			n_qubits = circuit.num_qubits
+			try:
+				n_qubits = self.circuit.num_qubits
+			except:
+				n_qubits = self.circuit.n_qubits
 			qubit_list = list(range(len(registers[0])),n_qubits)
 			meas_filter = error_mitigator(n_qubits,qubit_list,self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
 			result = meas_filter.apply(job)

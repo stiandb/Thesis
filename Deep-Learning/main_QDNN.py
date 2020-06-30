@@ -4,47 +4,55 @@ from matplotlib.pylab import *
 from QDNN import *
 from layers import *
 from loss import *
-from sklearn.datasets import load_iris
-from sklearn.metrics import accuracy_score, confusion_matrix
-from sklearn.model_selection import train_test_split
+from settings import ibmq_london_noise_model as noise_model, ibmq_london_basis_gates as basis_gates, ibmq_london_coupling_map as coupling_map
+np.random.seed(42)
 
 
+def f(x):
+	return(np.exp(2 - x + 3*x**2))
+
+n = 10
+
+x = np.linspace(0,1,n)
 
 
+y = f(x) #Create target vector
 
-iris = load_iris()
-X = iris['data']
-y = iris['target']
-np.random.seed(5)
+x -= np.min(x)
+x /= np.max(x)
+
+X = np.zeros((y.shape[0],1))
+X[:,0] = x
+
+y -= np.min(y)
+y /= np.max(y) #Normalize target vector
+
+plt.plot(x,y)
+plt.show()
+
+in1 = 1
+out1 = 3
+
+loss_fn = MSE()
+y_rotation=YRotation(bias=True)
 
 
+l1 = RotationLinear(in1,3*out1,in1+1,rotation=y_rotation,n_parallel=1,shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'))
+l2_1 = IntermediateAnsatzRotationLinear(n_qubits=out1,n_outputs=1,n_weights_a=out1,n_weights_r=out1+1,ansatz_i=y_rotation_ansatz,ansatz_a=identity_ansatz,rotation=y_rotation,n_parallel = 1,shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'))
+l2_2 = IntermediateAnsatzRotationLinear(n_qubits=out1,n_outputs=1,n_weights_a=out1,n_weights_r=out1+1,ansatz_i=y_rotation_ansatz,ansatz_a=identity_ansatz,rotation=y_rotation,n_parallel = 1,shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'))
+l2_3 = IntermediateAnsatzRotationLinear(n_qubits=out1,n_outputs=1,n_weights_a=out1,n_weights_r=out1+1,ansatz_i=y_rotation_ansatz,ansatz_a=identity_ansatz,rotation=y_rotation,n_parallel = 1,shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'))
+l3 = IntermediateAnsatzRotationLinear(n_qubits=3,n_outputs=1,n_weights_a=3,n_weights_r=4,ansatz_i=y_rotation_ansatz,ansatz_a=identity_ansatz,rotation=y_rotation,n_parallel = 1,shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'))
 
-X_train, X_test, y_train, y_test = train_test_split(X,y,test_size=0.3)
-print('train dataset shape', X_train.shape)
-print('test dataset shape', X_test.shape)
-
-l1 = X_train.shape[1]
-l2 = 3
-n = 5
-X_train = X_train[:n,:]
-y_train = y_train[:n]
-layers = [Linear(l1,l2),Linear(l2,3)]
-loss_fn = cross_entropy()
+layers = [l1,[l2_1,l2_2,l2_3],l3]
 model = QDNN(layers,loss_fn)
 
-np.save('model_params.npy',model.fit(X=X_train,y=y_train,method='Powell'))
+model.fit(X,y,seed=42)
+
+np.save('optimal_weights.npy',model.w_opt)
+np.save('loss_train_1d.npy',model.loss_train)
 
 
 
 
-w = np.load('model_params.npy')
-X = iris['data']
-y = iris['target']
-model.set_weights(w)
-np.save('loss.npy',model.loss)
-y_pred = model.predict(X_test)
-y_pred = np.argmax(y_pred,axis=1)
 
-print('accuracy:', accuracy_score(y_test,y_pred))
-print(confusion_matrix(y_test,y_pred))"""
 

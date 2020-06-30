@@ -12,7 +12,26 @@ def initial_state(circuit,registers):
 
 
 
-dt = 0.1
+"""dt = 0.1
 t=100
+steps = int(t/dt)
+print(steps)
+
+solver = QATE(n_spin_orbitals,H_0,H_1,initial_state,dt,t,seed_simulator=42)
+for k in range(100,steps,100):
+	print(solver.calculate_energy(early_stopping=k))"""
+
+steps=100
+dt = 0.2
+t=steps*dt
+
+
+
+
+for k in range(10,steps,10):
+	solver = QATE(n_spin_orbitals,H_0,H_1,initial_state,dt,t,seed_simulator=42)
+	print(solver.calculate_energy(early_stopping=k))
+
+
 solver = QATE(n_spin_orbitals,H_0,H_1,initial_state,dt,t,seed_simulator=42)
 print(solver.calculate_energy())
