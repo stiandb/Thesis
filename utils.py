@@ -4,6 +4,55 @@ from copy import deepcopy
 from qiskit.ignis.mitigation.measurement import complete_meas_cal, CompleteMeasFitter
 import qiskit.ignis.verification.randomized_benchmarking as rb
 import collections
+import scipy as scipy
+import scipy.special as special
+import itertools as it
+from pandas import *
+
+class PairingFCIMatrix:
+	def __init__(self):
+		pass
+	def __call__(self,n_pairs,n_basis,delta,g):
+		"""
+		Produces FCI matrix for pairing hamiltonian
+		Inputs:
+			n_pairs (int) - Number of electron pairs
+			n_basis (int) - Number of spacial basis states (spin-orbitals / 2)
+			delta (float) - one-body strength
+			g (float) - interaction strength
+
+		Outputs:
+			H_mat (array) - FCI matrix for pairing hamiltonian
+			H_mat[0,0] (float) - Reference energy
+		"""
+		n_SD = int(special.binom(n_basis,n_pairs))
+		H_mat = np.zeros((n_SD,n_SD))
+		S = self.stateMatrix(n_pairs,n_basis)
+		for row in range(n_SD):
+			bra = S[row,:]
+			for col in range(n_SD):
+				ket = S[col,:]
+				if np.sum(np.equal(bra,ket)) == bra.shape:
+					H_mat[row,col] += 2*delta*np.sum(bra - 1) - 0.5*g*n_pairs
+				if n_pairs - np.intersect1d(bra,ket).shape[0] == 1:
+					H_mat[row,col] += -0.5*g
+		return(H_mat,H_mat[0,0])
+
+	def stateMatrix(self,n_pairs,n_basis):
+		L = []
+		states = range(1,n_basis+1)
+		for perm in it.permutations(states,n_pairs):
+			L.append(perm)
+		L = np.array(L)
+		L.sort(axis=1)
+		L = self.unique_rows(L)
+		return(L)
+
+	def unique_rows(self,a):
+	    a = np.ascontiguousarray(a)
+	    unique_a = np.unique(a.view([('', a.dtype)]*a.shape[1]))
+	    return unique_a.view(a.dtype).reshape((unique_a.shape[0], a.shape[1]))
+
 
 def QFT(circuit,registers,inverse=False):
 	"""
@@ -220,15 +269,13 @@ def pairing_initial_state(circuit,registers):
 		circuit.cx(registers[0][i],registers[0][i+1])
 	return(circuit, registers)
 
-def pairing_ansatz(theta,circuit,registers):
-	circuit.x(registers[0][2])
-	circuit.x(registers[0][3])
+def simple_pairing_ansatz(theta,circuit,registers):
 	circuit.ry(theta[0],registers[0][0])
 	circuit.cx(registers[0][0],registers[0][1])
+	circuit.x(registers[0][1])
 	circuit.cx(registers[0][1],registers[0][2])
-	circuit.x(registers[0][2])
-	circuit.cx(registers[0][2],registers[0][3])
-	circuit.x(registers[0][2])
+	circuit.cx(registers[0][1],registers[0][3])
+	circuit.x(registers[0][1])
 	return(circuit,registers)
 
 
@@ -258,8 +305,8 @@ class ControlledTimeEvolutionOperator:
 		registers (list) - 					List containing quantum registers and classical register. 
 											The first register should be the t-register for the phase estimation algorithm. 
 											The second register should be the register to apply the time evolution to.
-											The last register should be the classical register, while the second to last register 
-											should be the ancilla register to make the conditional operation required for the time evolution operation.
+											The last register should be the classical register, *while the second to last register 
+											should be the ancilla register to make the conditional operation required for the time evolution operation.*
 		control (Int) - 					The control qubit for the controlled time evolution operation.
 											should be the ancilla register to make the conditional operation required for the time evolution operation.
 		power (int) - 						What power to put the operator to (U^(power))
@@ -892,7 +939,7 @@ class AmplitudeEncoder:
 	"""
 	Encodes an arbitrary vector into the amplitudes of a quantum state
 	"""
-	def __init__(self,eps = 1e-14):
+	def __init__(self,eps = 1e-14,inverse=False):
 		"""
 		Input:
 			eps (float) - In case of zero vectors, this is used to prevent dividing by zero when normalizing the dataset
@@ -900,6 +947,7 @@ class AmplitudeEncoder:
 		self.eps=eps
 		self.n_qubits = None
 		self.usage = None
+		self.inverse = inverse
 
 	def make_amplitude_list(self,X):
 		"""
@@ -908,7 +956,7 @@ class AmplitudeEncoder:
 		"""
 		if X.flatten().shape[0] == 1:
 			X_ = np.zeros(2)
-			X_[0] = X[0]
+			X_[0] = X[0] - 0.5
 			X_[1] = 0.5
 			X = X_
 		X = X/(np.sqrt(np.sum(X**2))+self.eps)
@@ -988,7 +1036,7 @@ class AmplitudeEncoder:
 					circuit.x(registers[0][qbit])
 		return(new_amplitudes,circuit,registers)
 
-	def __call__(self,circuit,registers,X,inverse=False):
+	def __call__(self,X,circuit,registers):
 		"""
 		Amplitude encodes a vector X
 		Input:
@@ -1014,7 +1062,7 @@ class AmplitudeEncoder:
 			encoded_circuit.add_register(ancilla_register)
 			circuit.add_register(ancilla_register)
 			registers.insert(-1,ancilla_register)
-		if np.all(X == X[0]):
+		if (X.flatten().shape[0]) != 1 and np.all(X == X[0]):
 			for i in range(n):
 				encoded_circuit.h(registers[0][i])
 			circuit += encoded_circuit
@@ -1034,7 +1082,7 @@ class AmplitudeEncoder:
 					encoded_circuit.ry(-np.pi,registers[0][0])
 				if amp0 != 0:
 					encoded_circuit.ry(-2*np.arctan(amp1/amp0),registers[0][0])
-		if not inverse:
+		if not self.inverse:
 			encoded_circuit = encoded_circuit.inverse()
 		circuit += encoded_circuit
 		self.usage = True
@@ -1056,8 +1104,9 @@ def squared_inner_product(x,y,circuit,registers,shots=1000,backend=qk.Aer.get_ba
 	encoder= AmplitudeEncoder()
 	ancilla_register = qk.QuantumRegister(1)
 	circuit.add_register(ancilla_register)
-	circuit,registers = encoder(circuit,registers,x)
-	circuit,registers = encoder(circuit,registers,y,inverse=True)
+	circuit,registers = encoder(x,circuit,registers)
+	encoder.inverse = True
+	circuit,registers = encoder(y,circuit,registers)
 	for i in range(len(registers[0])):
 		circuit.x(registers[0][i])
 	circuit.mcrx(np.pi,[registers[0][i] for i in range(len(registers[0]))],ancilla_register[0])

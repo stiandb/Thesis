@@ -8,48 +8,53 @@ from settings import ibmq_london_noise_model as noise_model, ibmq_london_basis_g
 np.random.seed(42)
 
 
-def f(x):
-	return(np.exp(2 - x + 3*x**2))
+def f(x1):
+	return(3-3*x1**2 + x1)
 
-n = 10
+n = 5
 
-x = np.linspace(0,1,n)
+x = np.linspace(-1,1,n)
+
+
 
 
 y = f(x) #Create target vector
 
+
 x -= np.min(x)
-x /= np.max(x)
+x /= np.max(x)*np.pi*2
+
+
 
 X = np.zeros((y.shape[0],1))
 X[:,0] = x
 
+
 y -= np.min(y)
 y /= np.max(y) #Normalize target vector
 
-plt.plot(x,y)
-plt.show()
 
-in1 = 1
-out1 = 3
 
 loss_fn = MSE()
 y_rotation=YRotation(bias=True)
 
 
-l1 = RotationLinear(in1,3*out1,in1+1,rotation=y_rotation,n_parallel=1,shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'))
-l2_1 = IntermediateAnsatzRotationLinear(n_qubits=out1,n_outputs=1,n_weights_a=out1,n_weights_r=out1+1,ansatz_i=y_rotation_ansatz,ansatz_a=identity_ansatz,rotation=y_rotation,n_parallel = 1,shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'))
-l2_2 = IntermediateAnsatzRotationLinear(n_qubits=out1,n_outputs=1,n_weights_a=out1,n_weights_r=out1+1,ansatz_i=y_rotation_ansatz,ansatz_a=identity_ansatz,rotation=y_rotation,n_parallel = 1,shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'))
-l2_3 = IntermediateAnsatzRotationLinear(n_qubits=out1,n_outputs=1,n_weights_a=out1,n_weights_r=out1+1,ansatz_i=y_rotation_ansatz,ansatz_a=identity_ansatz,rotation=y_rotation,n_parallel = 1,shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'))
-l3 = IntermediateAnsatzRotationLinear(n_qubits=3,n_outputs=1,n_weights_a=3,n_weights_r=4,ansatz_i=y_rotation_ansatz,ansatz_a=identity_ansatz,rotation=y_rotation,n_parallel = 1,shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'))
+l1 = GeneralLinear(n_qubits=1,n_outputs=4,n_weights_a=3,n_weights_ent=1,U_enc=AmplitudeEncoder(),U_a=EulerRotationAnsatz(linear_entangler),U_ent=EntanglementRotation(bias=True),shots=200,seed_simulator=42)
+l2 = GeneralLinear(n_qubits=2,n_outputs=1,n_weights_a=3*2*3,n_weights_ent=1,U_enc=AmplitudeEncoder(),U_a=EulerRotationAnsatz(linear_entangler),U_ent=EntanglementRotation(bias=True),shots=200,seed_simulator=42)
 
-layers = [l1,[l2_1,l2_2,l2_3],l3]
+layers = [l1,l2]
 model = QDNN(layers,loss_fn)
 
-model.fit(X,y,seed=42)
+model.fit(X,y,method='Powell',seed=42,print_loss=True)
 
 np.save('optimal_weights.npy',model.w_opt)
 np.save('loss_train_1d.npy',model.loss_train)
+
+w = np.load('optimal_weights.npy')
+model.set_weights(w)
+
+y_pred = model.forward(X)
+
 
 
 

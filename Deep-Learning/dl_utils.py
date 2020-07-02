@@ -53,3 +53,14 @@ class EulerRotation:
 			circuit.crz(weights[i+2],registers[0][q],registers[1][ancilla])
 			i+=3
 		return(circuit,registers)
+
+class EntanglementRotation:
+	def __init__(self,bias=False):
+		self.bias=bias
+	def __call__(self,weights,ancilla,circuit,registers):
+		if self.bias:
+			circuit.mcrx(weights[0],[registers[0][i] for i in range(len(registers[0]))],registers[1][ancilla])
+		else:
+			circuit.mcrx(np.pi,[registers[0][i] for i in range(len(registers[0]))],registers[1][ancilla])
+		return(circuit,registers)
+

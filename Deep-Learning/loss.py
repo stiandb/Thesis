@@ -1,5 +1,9 @@
 import numpy as np 
+import sys
+sys.path.append('../')
+from utils import *
 from sklearn.metrics import log_loss
+
 
 class MSE:
 	def __call__(self,y_pred,y):
@@ -39,4 +43,38 @@ class eigenvector_ode:
 		quotient = rayleigh_quotient(self.A)
 		print('Quotient: ',quotient(x[-1,:]))
 		return(loss)
+
+class SubsetAutoEncoderInnerProduct:
+	def __init__(self,U_subsenc):
+		self.U_subsenc = U_subsenc
+
+	def __call__(self,theta,x,circuit,registers):
+		circuit,register = self.U_subsenc(theta,circuit,registers)
+		encoder = AmplitudeEncoder(inverse=True)
+		encoder=AmplitudeEncoder()		
+		circuit,registers = encoder(x,circuit,registers)
+		ancilla_register = qk.QuantumRegister(1)
+		circuit.add_register(ancilla_register)
+		registers.insert(1,ancilla_register)
+		for i in range(len(registers[0])):
+			circuit.x(registers[0][i])
+		circuit.mcrx(np.pi,[registers[0][i] for i in range(len(registers[0]))],ancilla_register[0])
+		circuit.measure(ancilla_register,registers[-1])
+		job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=1000,seed_simulator=42).result()
+		result = job.get_counts(circuit)
+		inner_product = 0
+		for key,value in result.items():
+			if key == '1':
+				inner_product += value
+		inner_product /= 1000
+		return(-inner_product)
+
+
+
+
+
+
+
+
+
 

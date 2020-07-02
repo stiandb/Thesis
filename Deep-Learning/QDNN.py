@@ -1,7 +1,7 @@
 import sys
 sys.path.append('../')
 from dl_utils import *
-from scipy.optimize import minimize
+from scipy.optimize import minimize, Bounds
 from utils import *
 import numpy as np
 import qiskit as qk
@@ -31,6 +31,7 @@ class QDNN(Utils):
 		Output:
 			x (numpy array) - The output from the neural network.
 		"""
+
 		for layer in self.layers:
 			if type(layer) is list:
 				X_ = []
@@ -45,7 +46,7 @@ class QDNN(Utils):
 			X = X/(np.sum(X,axis=1).reshape(X.shape[0],1) + 1e-14)
 		return(X)
 
-	def fit(self,X,y,X_val=None,y_val=None,method='Powell',max_iters = 1000,max_fev=None,tol=1e-14,seed=None):
+	def fit(self,X,y,X_val=None,y_val=None,method='Powell',max_iters = 10000,max_fev=None,tol=1e-14,seed=None,bounds=None,print_loss=False):
 		"""
 		Uses classical optimization to train the neural network.
 		Input:
@@ -55,12 +56,11 @@ class QDNN(Utils):
 			max_inters (int)- The maximum number of iterations for the classical
 								optimization.
 		"""
+		options = {'disp':True,'maxiter':max_iters}
 		if not seed is None:
 			np.random.seed(seed)
 		if not max_fev is None:
-			options = {'disp':True,'maxiter':max_iters,'maxfev':max_fev}
-		else:
-			options = {'disp':True,'maxiter':max_iters}
+			options['maxfev'] = max_fev
 		self.n_weights = 0
 		for layer in self.layers:
 			if type(layer) is list:
@@ -68,13 +68,16 @@ class QDNN(Utils):
 					self.n_weights += sub_layer.w_size
 			else:
 				self.n_weights += layer.w_size
-		w = np.random.randn(self.n_weights)
-		w = minimize(self.calculate_loss,w,args=(X,y,X_val,y_val),method=method,options=options,tol=tol).x
+		w = 1+0.1*np.random.randn(self.n_weights)
+		if bounds is None:
+			w = minimize(self.calculate_loss,w,args=(X,y,X_val,y_val,print_loss),method=method,options=options,tol=tol).x
+		else:
+			w = minimize(self.calculate_loss,w,args=(X,y,X_val,y_val,print_loss),method=method,options=options,tol=tol,bounds=Bounds(bounds[0],bounds[1])).x
 		self.set_weights(self.w_opt)
 		self.loss_train = np.array(self.loss_train)
 		self.loss_val = np.array(self.loss_val)
 
-	def calculate_loss(self,w,X,y,X_val=None,y_val=None):
+	def calculate_loss(self,w,X,y,X_val=None,y_val=None,print_loss=False):
 		"""
 		Input:
 			w (numpy array) - One dimensional array containing 
@@ -90,13 +93,15 @@ class QDNN(Utils):
 		if X_val is None:
 			if not self.first_run and (cost_train < np.min(np.array(self.loss_train))):
 				self.w_opt = w.copy()
-			print('Training loss: ',cost_train)
+			if print_loss:
+				print('Training loss: ',cost_train)
 		else:
 			y_val_pred = self.forward(X_val)
 			cost_val = self.loss_fn(y_val_pred,y_val)
 			if not self.first_run and (cost_val < np.min(np.array(self.loss_val))):
 				self.w_opt = w.copy()
-			print('Training loss: ',cost_train, ' Validation loss: ',cost_val)
+			if print_loss:
+				print('Training loss: ',cost_train, ' Validation loss: ',cost_val)
 			self.loss_val.append(cost_val)
 		self.loss_train.append(cost_train)
 		self.first_run = False

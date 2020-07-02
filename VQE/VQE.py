@@ -6,7 +6,7 @@ from inspect import getfullargspec
 
 
 class VQE:
-	def __init__(self,hamiltonian_list,ansatz,n_qubits,ancilla=0,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,max_energy=False,transpile=False,seed_transpiler=None,optimization_level=1,coupling_map=None,error_mitigator=None):
+	def __init__(self,hamiltonian_list,ansatz,n_qubits,ancilla=0,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,max_energy=False,transpile=False,seed_transpiler=None,optimization_level=1,coupling_map=None,error_mitigator=None,print_energies=False):
 		"""
 		Inputs:
 			hamiltonian_list (list) - List containing each term of the hamiltionian
@@ -43,6 +43,9 @@ class VQE:
 			self.set_classical_bits = False
 		self.energies = []
 		self.error_mitigator = error_mitigator
+		self.print_energies=print_energies
+		self.theta = None
+		self.optimization = False
 
 
 
@@ -73,13 +76,15 @@ class VQE:
 			E += measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,shots=self.shots,noise_model=self.noise_model,basis_gates=self.basis_gates,transpile=self.transpile,optimization_level=self.optimization_level,seed_transpiler=self.seed_transpiler,coupling_map=self.coupling_map,error_mitigator=self.error_mitigator)
 			if not self.seed_simulator is None:
 				self.seed_simulator += 1
-		print('<E> = ', E)
 		if self.max_energy:
 			E = -E
-		self.energies.append(E)
+		if self.print_energies:
+			print('<E> = ', E)
+		if self.optimization:
+			self.energies.append(E)
 		return(E)
 
-	def classical_optimization(self,theta,method='L-BFGS-B',max_iters = 100,max_fev=None):
+	def classical_optimization(self,theta,method='L-BFGS-B',max_iters = 1000,max_fev=None):
 		"""
 		Performs a classical optimization method to find the optimal parameters.
 		This function is used directly after initialization of class.
@@ -91,6 +96,8 @@ class VQE:
 		Output:
 			theta (numpy array) - The optimal parameters  
 		"""
+		self.optimization = True
+
 		if not max_fev is None:
 			options = {'disp':True,'maxiter':max_iters,'maxfev':max_fev}
 		else:
@@ -101,4 +108,6 @@ class VQE:
 			bounds = None
 		result = minimize(self.expectation_value,theta,bounds = bounds,method=method,options=options)
 		theta = result.x
-		return(theta)
+		self.theta = np.array([theta]) if len(theta.shape) == 0 else theta 
+		self.energies =np.array(self.energies)
+		self.optimization=False
