@@ -250,7 +250,7 @@ class PairingInitialState:
 			circuit.x(registers[0][i])
 		return(circuit,registers)
 
-def pairing_initial_state(circuit,registers):
+def qpe_pairing_initial_state(circuit,registers):
 	"""
 	Sets up the initial state for QPE an QITE for the pairing model
 	Input:

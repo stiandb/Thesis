@@ -45,28 +45,33 @@ class eigenvector_ode:
 		return(loss)
 
 class SubsetAutoEncoderInnerProduct:
-	def __init__(self,U_subsenc):
+	def __init__(self,U_subsenc,shots=1000,seed_simulator=42):
 		self.U_subsenc = U_subsenc
+		self.shots = shots
+		self.seed_simulator=seed_simulator
 
 	def __call__(self,theta,x,circuit,registers):
-		circuit,register = self.U_subsenc(theta,circuit,registers)
-		encoder = AmplitudeEncoder(inverse=True)
-		encoder=AmplitudeEncoder()		
-		circuit,registers = encoder(x,circuit,registers)
-		ancilla_register = qk.QuantumRegister(1)
-		circuit.add_register(ancilla_register)
-		registers.insert(1,ancilla_register)
-		for i in range(len(registers[0])):
-			circuit.x(registers[0][i])
-		circuit.mcrx(np.pi,[registers[0][i] for i in range(len(registers[0]))],ancilla_register[0])
-		circuit.measure(ancilla_register,registers[-1])
-		job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=1000,seed_simulator=42).result()
-		result = job.get_counts(circuit)
-		inner_product = 0
-		for key,value in result.items():
-			if key == '1':
-				inner_product += value
-		inner_product /= 1000
+		loss = 0
+		for k in range(theta.shape[0]):
+			circuit,register = self.U_subsenc(theta[k,:],circuit,registers)
+			encoder = AmplitudeEncoder(inverse=True)
+			encoder=AmplitudeEncoder()
+			circuit,registers = encoder(x[k,:],circuit,registers)
+			ancilla_register = qk.QuantumRegister(1)
+			circuit.add_register(ancilla_register)
+			registers.insert(1,ancilla_register)
+			for i in range(len(registers[0])):
+				circuit.x(registers[0][i])
+			circuit.mcrx(np.pi,[registers[0][i] for i in range(len(registers[0]))],ancilla_register[0])
+			circuit.measure(ancilla_register,registers[-1])
+			job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=self.shots,seed_simulator=self.seed_simulator).result()
+			result = job.get_counts(circuit)
+			inner_product = 0
+			for key,value in result.items():
+				if key == '1':
+					inner_product += value
+			inner_product /= self.shots
+			loss += inner_product
 		return(-inner_product)
 
 

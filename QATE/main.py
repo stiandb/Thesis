@@ -34,14 +34,14 @@ for k in range(1,steps,3):
 
 solver = QATE(n_spin_orbitals,H_0,H_1,initial_state,dt,t,seed_simulator=42)
 E.append(solver.calculate_energy())
-E = np.array(E)
+E = np.array(E)"""
 
-np.save('QATE_2F_4O.npy',E)
+E = np.load('QATE_2F_4O_range1_steps_3.npy')
 
 plt.plot(E)
-plt.show()"""
+plt.show()
 
-def initial_state(circuit,registers):
+"""def initial_state(circuit,registers):
 	for i in range(int(len(registers[0])/2)):
 		circuit.x(registers[0][i])
 	return(circuit,registers)
@@ -50,7 +50,7 @@ def initial_state(circuit,registers):
 n_spin_orbitals=4
 factor = 0.2
 n = 10
-steps=80
+steps=40
 dt = 0.4
 t=steps*dt
 E_ideal = np.zeros(n)
@@ -64,7 +64,7 @@ for i,g in enumerate(np.linspace(0.5,5,n)):
 	E_fci[i] = eigvals[0]
 	E_temp_ideal = []
 	E_temp_noisy = []
-	for k in range(1,steps):
+	for k in range(1,steps,3):
 		solver = QATE(n_spin_orbitals,H_0,H_1,initial_state,dt,t,seed_simulator=42)
 		E_temp_ideal.append(solver.calculate_energy(early_stopping=k))
 		solver = QATE(n_spin_orbitals,H_0,H_1,initial_state,dt,t,seed_simulator=42,seed_transpiler=42,transpile=True,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map,error_mitigator=ErrorMitigation())
@@ -75,9 +75,9 @@ for i,g in enumerate(np.linspace(0.5,5,n)):
 	E_temp_ideal.append(solver.calculate_energy())
 	E_ideal[i] = min(E_temp_ideal)
 	E_noisy[i] = min(E_temp_noisy)
-	print(E_fci[i],E_ideal[i],E_noisy[i])
+
 
 np.save('qate_ideal.npy',E_ideal)
 np.save('qate_noisy.npy',E_noisy)
 np.save('qate_fci.npy',E_fci)
-
+"""

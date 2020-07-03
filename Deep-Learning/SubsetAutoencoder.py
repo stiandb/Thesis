@@ -4,28 +4,24 @@ from matplotlib.pylab import *
 from QDNN import *
 from layers import *
 from loss import *
-from sklearn.datasets import load_iris
-from sklearn.metrics import accuracy_score, confusion_matrix
-from sklearn.model_selection import train_test_split
-from hamiltonian import *
-from settings import ibmq_london_noise_model as noise_model, ibmq_london_basis_gates as basis_gates, ibmq_london_coupling_map as coupling_map
-import matplotlib.pylab as plt
+from copy import deepcopy
 
 class SubsetAutoencoder(Utils):
-	def __init__(self,k = None,layers=None,U_subenc=None):
+	def __init__(self,k = None,layers=None,U_subenc=None,k_encoders=False):
 		"""
 		Inputs:
 			layers (list) - List containing layers for dense neural network
 			loss_fn (callable) - loss_fn(y_pred, y) returns the loss where y_pred is 
 									the prediction and y is the actual target variable
 		"""
-		self.layers = layers
+		self.layers = layers if not k_encoders else [deepcopy(layers) for i in range(k)]
 		self.k = k
 		self.w_opt = None
 		self.first_run = True
 		self.U_subenc = U_subenc
 		self.loss_fn = SubsetAutoEncoderInnerProduct(self.U_subenc)
 		self.loss_train = []
+		self.k_encoders = k_encoders
 
 	def forward(self,X):
 		"""
@@ -37,12 +33,15 @@ class SubsetAutoencoder(Utils):
 		"""
 
 		params= []
-		X = np.split(X,self.k)
-		for x in X:
-			x = x.reshape(1,x.shape[0])
-			for layer in self.layers:
-				x = layer(x)
-			params.append(x.flatten())
+		X = np.split(X,self.k,axis=1)
+		for k,x in enumerate(X):
+			if self.k_encoders:
+				layer_list = self.layers[k]
+			else:
+				layer_list = self.layers
+			for sub_layer in layer_list:
+				x = sub_layer(x)
+			params.append(x)
 		params = np.hstack(params)
 		return(params)
 
@@ -80,7 +79,7 @@ class SubsetAutoencoder(Utils):
 		Output:
 			cost (float) 	- The loss for the data.
 		"""
-		n_inputs = X.shape[0]
+		n_inputs = X.shape[1]
 		self.set_weights(w)
 		theta = self.forward(X)
 		n_qubits = int(np.ceil(np.log2(n_inputs)))
