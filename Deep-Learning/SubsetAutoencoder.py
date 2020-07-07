@@ -22,6 +22,14 @@ class SubsetAutoencoder(Utils):
 		self.loss_fn = SubsetAutoEncoderInnerProduct(self.U_subenc)
 		self.loss_train = []
 		self.k_encoders = k_encoders
+		self.loss_list = []
+		self.n_weights = 0
+		for layer in self.layers:
+			if type(layer) is list:
+				for sub_layer in layer:
+					self.n_weights += sub_layer.w_size
+			else:
+				self.n_weights += layer.w_size
 
 	def forward(self,X):
 		"""
@@ -56,16 +64,10 @@ class SubsetAutoencoder(Utils):
 								optimization.
 		"""
 		options = {'disp':True,'maxiter':max_iters}
-		self.n_weights = 0
-		for layer in self.layers:
-			if type(layer) is list:
-				for sub_layer in layer:
-					self.n_weights += sub_layer.w_size
-			else:
-				self.n_weights += layer.w_size
 		w = 1+0.1*np.random.randn(self.n_weights)
 		w = minimize(self.calculate_loss,w,args=(X,print_loss),method=method,options=options).x
 		self.loss_train = np.array(self.loss_train)
+		self.loss_list = np.array(self.loss_list)
 		return(w)
 		
 
@@ -87,11 +89,12 @@ class SubsetAutoencoder(Utils):
 		cl_reg = qk.ClassicalRegister(1)
 		circuit = qk.QuantumCircuit(amp_reg,cl_reg)
 		registers = [amp_reg,cl_reg]
-		cost_train = self.loss_fn(2*np.pi*theta,X,circuit,registers)
+		cost_train,loss_list = self.loss_fn(2*np.pi*theta,X,circuit,registers)
+		self.loss_list.append(np.array(loss_list))
 		if not self.first_run and (cost_train < np.min(np.array(self.loss_train))):
 			self.w_opt = w.copy()
 		if print_loss:
-			print('Training loss: ',cost_train)
+			print('Training loss: ',cost_train,'Loss per sample: ',-np.array(loss_list))
 		self.loss_train.append(cost_train)
 		self.first_run = False
 		return(cost_train)

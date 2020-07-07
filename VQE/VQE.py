@@ -6,7 +6,7 @@ from inspect import getfullargspec
 
 
 class VQE:
-	def __init__(self,hamiltonian_list,ansatz,n_qubits,ancilla=0,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,max_energy=False,transpile=False,seed_transpiler=None,optimization_level=1,coupling_map=None,error_mitigator=None,print_energies=False):
+	def __init__(self,hamiltonian_list,ansatz,n_qubits,ancilla=0,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,max_energy=False,transpile=False,seed_transpiler=None,optimization_level=1,coupling_map=None,error_mitigator=None,print_energies=False,regularization=None):
 		"""
 		Inputs:
 			hamiltonian_list (list) - List containing each term of the hamiltionian
@@ -42,21 +42,27 @@ class VQE:
 		else:
 			self.set_classical_bits = False
 		self.energies = []
+		self.energies_regularized = []
 		self.error_mitigator = error_mitigator
 		self.print_energies=print_energies
 		self.theta = None
 		self.optimization = False
+		self.regularization = regularization
 
 
 
 
-	def expectation_value(self,theta):
+	def expectation_value(self,theta,hamiltonian_list = None):
 		"""
 		Calculates expectation values and adds them together
 		"""
 		E = 0
 		circuit,registers = None, None
-		for pauli_string in self.hamiltonian_list:
+		if hamiltonian_list is None:
+			h_l = self.hamiltonian_list
+		else: 
+			h_l = hamiltonian_list
+		for pauli_string in h_l:
 			factor = pauli_string[0]
 			if factor == 0:
 				continue
@@ -76,13 +82,31 @@ class VQE:
 			E += measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,shots=self.shots,noise_model=self.noise_model,basis_gates=self.basis_gates,transpile=self.transpile,optimization_level=self.optimization_level,seed_transpiler=self.seed_transpiler,coupling_map=self.coupling_map,error_mitigator=self.error_mitigator)
 			if not self.seed_simulator is None:
 				self.seed_simulator += 1
+		reg = 0
+		if not self.regularization is None and hamiltonian_list is None:
+			reg = self.add_regularization(theta,self.regularization)
+			
+
 		if self.max_energy:
 			E = -E
 		if self.print_energies:
-			print('<E> = ', E)
+			if hamiltonian_list is None:
+				print('<E> = ', E)
+				E += reg
+				print('E + reg:', E )
+				print('_______________')
 		if self.optimization:
-			self.energies.append(E)
+			self.energies.append(E - reg)
+			if not self.regularization is None:
+				self.energies_regularized.append(E)
 		return(E)
+	def add_regularization(self,theta,regularization):
+		E = []
+		if not regularization is None:
+			for goal,lamb,hamiltonian_list in self.regularization:
+				E.append( lamb*(goal - self.expectation_value(theta,hamiltonian_list))**2)
+		return(sum(E))
+
 
 	def classical_optimization(self,theta,method='Powell',options=None):
 		"""
@@ -101,4 +125,5 @@ class VQE:
 		theta = result.x
 		self.theta = np.array([theta]) if len(theta.shape) == 0 else theta 
 		self.energies =np.array(self.energies)
+		self.energies_regularized = np.array(self.energies_regularized)
 		self.optimization=False

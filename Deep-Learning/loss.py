@@ -3,7 +3,7 @@ import sys
 sys.path.append('../')
 from utils import *
 from sklearn.metrics import log_loss
-
+from copy import deepcopy
 
 class MSE:
 	def __call__(self,y_pred,y):
@@ -45,18 +45,18 @@ class eigenvector_ode:
 		return(loss)
 
 class SubsetAutoEncoderInnerProduct:
-	def __init__(self,U_subsenc,shots=1000,seed_simulator=42):
-		self.U_subsenc = U_subsenc
+	def __init__(self,U_subenc,shots=1000,seed_simulator=42):
+		self.U_subenc = U_subenc
 		self.shots = shots
 		self.seed_simulator=seed_simulator
 
 	def __call__(self,theta,x,circuit,registers):
 		loss = 0
-		for k in range(theta.shape[0]):
-			circuit,register = self.U_subsenc(theta[k,:],circuit,registers)
+		loss_list = []
+		for sample in range(x.shape[0]):
+			circuit,register = self.U_subenc(theta[sample,:],circuit,registers)
 			encoder = AmplitudeEncoder(inverse=True)
-			encoder=AmplitudeEncoder()
-			circuit,registers = encoder(x[k,:],circuit,registers)
+			circuit,registers = encoder(x[sample,:],circuit,registers)
 			ancilla_register = qk.QuantumRegister(1)
 			circuit.add_register(ancilla_register)
 			registers.insert(1,ancilla_register)
@@ -72,9 +72,43 @@ class SubsetAutoEncoderInnerProduct:
 					inner_product += value
 			inner_product /= self.shots
 			loss += inner_product
+			loss_list.append(inner_product)
+		return(-loss/x.shape[0],loss_list)
+
+
+class UnitaryComparison:
+	def __init__(self,U_1,U_2,n_qubits=None,shots=1000,seed_simulator=42):
+		self.U_1 = U_1
+		self.U_2 = U_2
+		self.n_qubits=n_qubits
+		self.shots=shots
+		self.seed_simulator=seed_simulator
+	def __call__(self,theta_1,theta_2,initial_state):
+		n_qubits = self.n_qubits
+		q_reg = qk.QuantumRegister(n_qubits)
+		c_reg = qk.ClassicalRegister(1)
+		circuit = qk.QuantumCircuit(q_reg,c_reg)
+		registers = [q_reg,c_reg]
+		circuit,registers = initial_state(circuit,registers,inverse=False)
+		circuit,registers = deepcopy(self.U_1)(theta_1,circuit,registers)
+		circuit,registers = deepcopy(self.U_2)(theta_2,circuit,registers)
+		circuit,registers = initial_state(circuit,registers,inverse=True)
+		ancilla_register = qk.QuantumRegister(1)
+		circuit.add_register(ancilla_register)
+		registers.insert(1,ancilla_register)
+		for i in range(len(registers[0])):
+			circuit.x(registers[0][i])
+		circuit.mcrx(np.pi,[registers[0][i] for i in range(len(registers[0]))],ancilla_register[0])
+		circuit.measure(ancilla_register,registers[-1])
+		job = qk.execute(circuit, backend = qk.Aer.get_backend('qasm_simulator'), shots=self.shots,seed_simulator=self.seed_simulator).result()
+		result = job.get_counts(circuit)
+		inner_product = 0
+		for key,value in result.items():
+			if key == '1':
+				inner_product += value
+		inner_product /= self.shots
+		del circuit,registers,ancilla_register
 		return(-inner_product)
-
-
 
 
 

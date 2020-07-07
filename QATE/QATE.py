@@ -4,7 +4,7 @@ from utils import *
 from copy import deepcopy
 
 class QATE:
-	def __init__(self,n_qubits,H_0,H_1,initial_state,dt,t,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,coupling_map=None,seed_transpiler=None,transpile=False,optimization_level=1,error_mitigator=None):
+	def __init__(self,n_qubits,H_0,H_1,initial_state,dt,t,midpoint_method=False,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,coupling_map=None,seed_transpiler=None,transpile=False,optimization_level=1,error_mitigator=None):
 		"""
 		Input:
 			n_qubits (int) - The number of qubits in the circuit
@@ -30,6 +30,8 @@ class QATE:
 		self.optimization_level=optimization_level
 		self.coupling_map=coupling_map
 		self.error_mitigator = error_mitigator
+		self.midpoint_method = midpoint_method
+
 	
 	def trotter_step(self,circuit,registers,k,steps):
 		"""
@@ -49,9 +51,15 @@ class QATE:
 		H_0_temp = deepcopy(self.H_0)
 		H_1_temp = deepcopy(self.H_1)
 		for i in range(len(self.H_0)):
-			H_0_temp[i][0] = self.H_0[i][0]*self.dt*(1 - k*self.dt/self.t)
+			if not self.midpoint_method:
+				H_0_temp[i][0] = self.H_0[i][0]*self.dt*(1 - k*self.dt/self.t)
+			else:
+				H_0_temp[i][0] = self.H_0[i][0]*self.dt*(1 - (k*self.dt + self.dt/2)/self.t)
 		for i in range(len(self.H_1)):
-			H_1_temp[i][0] = self.H_1[i][0]*self.dt**2*k/self.t 
+			if not self.midpoint_method:
+				H_1_temp[i][0] = self.H_1[i][0]*self.dt*self.dt*k/self.t 
+			else:
+				H_1_temp[i][0] = self.H_1[i][0]*self.dt*(self.dt*k + self.dt/2)/self.t 
 		time_evolution_list = H_0_temp
 		time_evolution_list.extend(H_1_temp)
 		time_evolution = TimeEvolutionOperator(time_evolution_list,1/steps,1)
@@ -73,7 +81,10 @@ class QATE:
 		circuit,registers = initialize_circuit(self.n_qubits,1,classical_bits)
 		circuit,registers = self.initial_state(circuit,registers)
 		if early_stopping is None:
-			iters = self.iterations+1
+			if self.midpoint_method:
+				iters = self.iterations
+			else:
+				iters = self.iterations+1
 		else:
 			iters = early_stopping
 		for k in range(iters):

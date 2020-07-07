@@ -55,9 +55,13 @@ class EulerRotation:
 		return(circuit,registers)
 
 class EntanglementRotation:
-	def __init__(self,bias=False):
+	def __init__(self,bias=False,zero_condition=False):
 		self.bias=bias
+		self.zero_condition=zero_condition
 	def __call__(self,weights,ancilla,circuit,registers):
+		if self.zero_condition:
+			for i in range(len(registers[0])):
+				circuit.x(registers[0][i])
 		if self.bias:
 			circuit.mcrx(weights[0],[registers[0][i] for i in range(len(registers[0]))],registers[1][ancilla])
 		else:

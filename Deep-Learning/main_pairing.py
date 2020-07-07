@@ -7,7 +7,6 @@ from loss import *
 from sklearn.datasets import load_iris
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split
-from hamiltonian import *
 from settings import ibmq_london_noise_model as noise_model, ibmq_london_basis_gates as basis_gates, ibmq_london_coupling_map as coupling_map
 import matplotlib.pylab as plt
 np.random.seed(7)
@@ -23,12 +22,12 @@ out1=2
 E_fci = np.zeros(n)
 E_noisy = np.zeros(n)
 E_ideal = np.zeros(n)
+g_array = np.linspace(1,5,n)
 
 
 
-
-for i,g in enumerate(np.linspace(1,5,n)):
-	H, Eref = hamiltonian(int(n_fermi/2),int(n_spin_orbitals/2),delta,g)
+for i,g in enumerate(g_array):
+	H, Eref = PairingFCIMatrix()(int(n_fermi/2),int(n_spin_orbitals/2),delta,g)
 	eigvals, eigvecs = np.linalg.eigh(H)
 	E_fci[i] = eigvals[0]
 	loss_fn = rayleigh_quotient(H)
@@ -52,9 +51,47 @@ for i,g in enumerate(np.linspace(1,5,n)):
 	E_ideal[i] = np.min(model.loss_train)
 	print(i+1)
 
+
 np.save('pairing{}_{}_E_fci.npy'.format(n_fermi,n_spin_orbitals),E_fci)
 np.save('pairing{}_{}_E_noisy.npy'.format(n_fermi,n_spin_orbitals),E_noisy)
 np.save('pairing{}_{}_E_ideal.npy'.format(n_fermi,n_spin_orbitals),E_ideal)
+
+
+#E_fci = np.load('pairing{}_{}_E_fci.npy'.format(n_fermi,n_spin_orbitals))
+#E_noisy = np.load('pairing{}_{}_E_noisy.npy'.format(n_fermi,n_spin_orbitals))
+#E_ideal = np.load('pairing{}_{}_E_ideal.npy'.format(n_fermi,n_spin_orbitals))
+
+fig1 = plt.figure(1)
+
+frame1=fig1.add_axes((.1,.3,.8,.6))
+plt.plot(g_array,E_fci,label='FCI')
+plt.plot(g_array,E_ideal,'r*',label='Ideal',alpha=0.8)
+plt.plot(g_array,E_noisy,'g+',label='Noisy')
+plt.title(r'Rayleigh quotient minimization. {} particles, {} spin orbitals, $\delta = {}$.'.format(n_fermi,n_spin_orbitals,delta))
+plt.ylabel('Energy [u.l]')
+plt.legend()
+
+
+#Residual plot
+difference_ideal = np.abs(E_fci- E_ideal)
+difference_noisy = np.abs(E_fci - E_noisy)
+frame2=fig1.add_axes((.1,.1,.8,.2))       
+plt.plot(g_array,difference_ideal,'r*',alpha=0.8)
+plt.plot(g_array,difference_noisy,'g+')
+plt.ylabel(r'|$E_{FCI} - E_{NN}$|')
+plt.xlabel('g')
+plt.grid()
+plt.show()
+
+
+
+
+
+
+
+
+
+
 
 
 

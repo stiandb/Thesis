@@ -8,6 +8,7 @@ import scipy as scipy
 import scipy.special as special
 import itertools as it
 from pandas import *
+import inspect
 
 class PairingFCIMatrix:
 	def __init__(self):
@@ -174,11 +175,12 @@ class TimeEvolutionOperatorAncilla:
 
 
 class TimeEvolutionOperator:
-	def __init__(self,hamiltonian_list,dt,T):
+	def __init__(self,hamiltonian_list,dt,T,inverse=False):
 		self.hamiltonian_list = hamiltonian_list
 		self.dt = dt
 		self.T = T
 		self.iters = int(self.T/self.dt)
+		self.inverse = inverse
 
 	def step(self,circuit,registers,power=1):
 		"""
@@ -188,6 +190,9 @@ class TimeEvolutionOperator:
 											The last register should be the classical register.
 		power (int) - 						What power to put the operator to (U^(power))
 		"""
+		evo_circuit = qk.QuantumCircuit()
+		for register in registers:
+			evo_circuit.add_register(register)
 		dt = self.dt
 		for hamiltonian_term in self.hamiltonian_list:
 			factor = hamiltonian_term[0]
@@ -195,41 +200,44 @@ class TimeEvolutionOperator:
 				continue
 			qubit_and_gate = hamiltonian_term[1:]
 			if len(qubit_and_gate) == 0:
-				circuit.u1(-dt*power*factor, registers[0][0])
-				circuit.x(registers[0][0])
-				circuit.u1(-dt*power*factor, registers[0][0])
-				circuit.x(registers[0][0])
+				evo_circuit.u1(-dt*power*factor, registers[0][0])
+				evo_circuit.x(registers[0][0])
+				evo_circuit.u1(-dt*power*factor, registers[0][0])
+				evo_circuit.x(registers[0][0])
 				continue 
 			elif len(qubit_and_gate) == 1:
 				qubit= qubit_and_gate[0][0]
 				gate = qubit_and_gate[0][1]
 				if gate == 'x':
-					circuit.rx(2*dt*factor*power,registers[0][qubit])
+					evo_circuit.rx(2*dt*factor*power,registers[0][qubit])
 				elif gate == 'y':
-					circuit.ry(2*dt*factor*power,registers[0][qubit])
+					evo_circuit.ry(2*dt*factor*power,registers[0][qubit])
 				elif gate == 'z':
-					circuit.rz(2*dt*factor*power,registers[0][qubit])
+					evo_circuit.rz(2*dt*factor*power,registers[0][qubit])
 				continue
 			target = qubit_and_gate[0][0]
 			for qubit, gate in qubit_and_gate:
 				if gate == 'x':
-					circuit.h(registers[0][qubit])
+					evo_circuit.h(registers[0][qubit])
 				elif gate == 'y':
-					circuit.rz(-np.pi/2,registers[0][qubit])
-					circuit.h(registers[0][qubit])
+					evo_circuit.rz(-np.pi/2,registers[0][qubit])
+					evo_circuit.h(registers[0][qubit])
 				if qubit != target:
-					circuit.cx(registers[0][qubit],registers[0][target])
-			circuit.rz(2*dt*factor*power,registers[0][target])
+					evo_circuit.cx(registers[0][qubit],registers[0][target])
+			evo_circuit.rz(2*dt*factor*power,registers[0][target])
 			qubit_and_gate.reverse()
 			for qubit, gate in qubit_and_gate:
 				if qubit != target:
-					circuit.cx(registers[0][qubit],registers[0][target])
+					evo_circuit.cx(registers[0][qubit],registers[0][target])
 				if gate == 'x':
-					circuit.h(registers[0][qubit])
+					evo_circuit.h(registers[0][qubit])
 				if gate == 'y':
-					circuit.h(registers[0][qubit])
-					circuit.rz(np.pi/2,registers[0][qubit])
+					evo_circuit.h(registers[0][qubit])
+					evo_circuit.rz(np.pi/2,registers[0][qubit])
 			qubit_and_gate.reverse()
+		if self.inverse:
+			evo_circuit = evo_circuit.inverse()
+		circuit += evo_circuit
 		return(circuit,registers)
 
 	def __call__(self,circuit,registers, power=1):
@@ -268,6 +276,25 @@ def qpe_pairing_initial_state(circuit,registers):
 		circuit.h(registers[0][i])
 		circuit.cx(registers[0][i],registers[0][i+1])
 	return(circuit, registers)
+
+class SimplePairingAnsatz:
+	def __init__(self,inverse=False):
+		self.inverse = inverse
+	def __call__(self,theta,circuit,registers):
+		ansatz_circuit = qk.QuantumCircuit()
+		for register in registers:
+			ansatz_circuit.add_register(register)
+		ansatz_circuit.ry(theta[0],registers[0][0])
+		ansatz_circuit.cx(registers[0][0],registers[0][1])
+		ansatz_circuit.x(registers[0][1])
+		ansatz_circuit.cx(registers[0][1],registers[0][2])
+		ansatz_circuit.cx(registers[0][1],registers[0][3])
+		ansatz_circuit.x(registers[0][1])
+		if self.inverse:
+			ansatz_circuit = ansatz_circuit.inverse()
+		circuit += ansatz_circuit
+		return(circuit,registers)
+
 
 def simple_pairing_ansatz(theta,circuit,registers):
 	circuit.ry(theta[0],registers[0][0])
@@ -533,12 +560,13 @@ def y_rotation_ansatz(theta,circuit,registers):
 
 class EulerRotationAnsatz:
 	"""Euler rotation ansatz with depth d and n qubits. Requires 3dn parameters"""
-	def __init__(self,entangler):
+	def __init__(self,entangler,inverse=False,):
 		"""
 		Input:
 			entangler (callable) - accepts parameters (circuit,registers) and entangles the first register
 		"""
 		self.entangler = entangler
+		self.inverse = inverse
 	def __call__(self,theta,circuit,registers):
 		"""
 		Input:
@@ -549,19 +577,32 @@ class EulerRotationAnsatz:
 			circuit (qiskit quantum circuit instance) - circuit with applied ansatz
 			registers (list) - the corresponding list
 		"""
+		ansatz_circuit = qk.QuantumCircuit()
+		for register in registers:
+			ansatz_circuit.add_register(register)
+		try:
+			n_params = self.entangler.n_params
+		except:
+			n_params = 0
 		n = len(registers[0])
-		D = int(theta.shape[0]/(3*n))
+		D = int((theta.shape[0])/(3*n + n_params))
 		i = 0
 		for d in range(D):
 			for q in range(n):
-				circuit.rz(theta[i],registers[0][q])
-				circuit.rx(theta[i+1],registers[0][q])
-				circuit.rz(theta[i+2],registers[0][q])
+				ansatz_circuit.rz(theta[i],registers[0][q])
+				ansatz_circuit.rx(theta[i+1],registers[0][q])
+				ansatz_circuit.rz(theta[i+2],registers[0][q])
 				i+=3
-			circuit,registers = self.entangler(circuit,registers)
+			if n_params == 0:
+				ansatz_circuit,registers = self.entangler(ansatz_circuit,registers)
+			else:
+				ansatz_circuit,registers = self.entangler(theta[-n_params:],circuit,registers)
+		if self.inverse:
+			ansatz_circuit = ansatz_circuit.inverse()
+		circuit += ansatz_circuit
 		return(circuit,registers)
 
-def identity_circuit(circuit,registers):
+def identity_circuit(circuit,registers,inverse=False):
 	return(circuit,registers)
 
 def identity_ansatz(theta,circuit,registers):
@@ -581,6 +622,16 @@ def linear_entangler(circuit,registers):
 	for j in range(n-1):
 		circuit.cx(registers[0][j],registers[0][j+1])
 	return(circuit,registers)
+
+class LinearRotationEntangler:
+	def __init__(self,n_qubits):
+		self.n_qubits = n_qubits
+		self.n_params = n_qubits
+	def __call__(self,theta,circuit,registers):
+		for i in range(len(registers[0])-1):
+			circuit.cry(theta[i],registers[0][i],registers[0][i+1])
+		return(circuit,registers)
+
 
 
 class UCCSD:
@@ -1062,9 +1113,10 @@ class AmplitudeEncoder:
 			encoded_circuit.add_register(ancilla_register)
 			circuit.add_register(ancilla_register)
 			registers.insert(-1,ancilla_register)
-		if (X.flatten().shape[0]) != 1 and np.all(X == X[0]):
-			for i in range(n):
-				encoded_circuit.h(registers[0][i])
+		if (X.flatten().shape[0]) != 1 and np.all(X.flatten() == X.flatten()[0]):
+			if X.flatten()[0] != 0:
+				for i in range(n):
+					encoded_circuit.h(registers[0][i])
 			circuit += encoded_circuit
 			self.usage = True
 			return(circuit,registers)
@@ -1128,12 +1180,90 @@ def squared_inner_product(x,y,circuit,registers,shots=1000,backend=qk.Aer.get_ba
 	return(inner_product)
 
 
+def inference_inner_product(cU_a,cU_b,circuit,registers,shots=1000,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None,basis_gates=None,transpile=False,seed_transpiler=None,optimization_level=1,coupling_map=None,error_mitigator=None):
+	ancilla_register = qk.QuantumRegister(1)
+	circuit.add_register(ancilla_register)
+	registers.insert(-1,ancilla_register)
+	circuit.h(ancilla_register[0])
+	circuit.x(ancilla_register[0])
+	circuit,registers = cU_a(circuit,registers)
+	circuit.x(ancilla_register[0])
+	circuit,registers = cU_b(circuit,registers)
+	circuit.h(ancilla_register[0])
+	circuit.measure(ancilla_register,registers[-1])
+	if transpile:
+		circuit = qk.compiler.transpile(circuit,backend=backend,backend_properties=backend.properties(),seed_transpiler=seed_transpiler,optimization_level=optimization_level,basis_gates=basis_gates,coupling_map=coupling_map)
+	job = qk.execute(circuit, backend = backend, shots=shots,seed_simulator=seed_simulator,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map).result()
+	if not error_mitigator is None:
+		meas_filter = error_mitigator(circuit.num_qubits,[-1],backend,seed_simulator=seed_simulator,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map,shots=shots)
+		result = meas_filter.apply(job)
+		result = result.get_counts(circuit)
+	else:
+		result = job.get_counts(circuit)
+	inner_product = 0
+	for key,value in result.items():
+		if key == '0':
+			inner_product += value
+	inner_product /= shots
+	inner_product -= 0.5
+	inner_product *= 2
+	return(inner_product)
+
+
+
+def pair_number_operator(n_spin_orbitals):
+	hamiltonian_list = []
+	for i in range(1,n_spin_orbitals,2):
+		hamiltonian_list.extend([[0.25,[i,'z']],[0.25,[i-1,'z']],[0.25,[i-1,'z'],[i,'z']],[0.25]])
+	return(hamiltonian_list)
+
+def particle_number_operator(n_spin_orbitals):
+	hamiltonian_list = []
+	for i in range(n_spin_orbitals):
+		hamiltonian_list.extend([[0.5,[i,'z']],[0.5]])
+	return(hamiltonian_list)
 
 
 
 
+class YRotationAnsatz:
+	def __init__(self,entangler=None,inverse=False):
+		self.inverse = inverse
+		self.entangler = entangler 
 
-
+	def __call__(self,theta,circuit,registers):
+		"""
+		Applies the R_y rotation ansatz to a quantum circuit
+		Input:
+			theta (numpy array) - 1D array containing all variational parameters
+			circuit (qiskit quantum circuit instance) - quantum circuit
+			registers (list) - list containing the ansatz register as first element
+		Output:
+			circuit (qiskit quantum circuit instance) - circuit with applied ansatz
+			registers (list) - the corresponding list
+		"""
+		try:
+			n_params = self.entangler.n_params
+		except:
+			n_params = 0
+		n = len(registers[0])
+		D = int((theta.shape[0])/(n + n_params))
+		ansatz_circuit = qk.QuantumCircuit()
+		for register in registers:
+			ansatz_circuit.add_register(register)
+		i = 0
+		for d in range(D):
+			for q in range(n):
+				ansatz_circuit.ry(theta[i],registers[0][q])
+				i+=1
+			if n_params == 0:
+				ansatz_circuit,registers = self.entangler(ansatz_circuit,registers)
+			else:
+				ansatz_circuit,registers = self.entangler(theta[-n_params:],ansatz_circuit,registers)
+		if self.inverse:
+			ansatz_circuit = ansatz_circuit.inverse()
+		circuit += ansatz_circuit
+		return(circuit,registers)
 
 
 

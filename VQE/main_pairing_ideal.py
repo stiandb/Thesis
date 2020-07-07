@@ -15,7 +15,6 @@ delta = 1
 
 
 for i,g in enumerate(g_array):
-	
 	H,e = PairingFCIMatrix()(int(n_fermi/2),int(n_spin_orbitals/2),delta,g)
 	eigvals,eigvecs = np.linalg.eigh(H)
 	res[i,1] = eigvals[0]
