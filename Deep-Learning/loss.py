@@ -30,19 +30,18 @@ class rayleigh_quotient:
 		x -= 0.5
 		return((x.T@H@x/(x.T@x)).flatten()[0])
 
-class eigenvector_ode:
-	def __init__(self,A,dt):
+class EigenvectorOde:
+	def __init__(self,A,dt=1):
 		self.dt = dt
 		self.A = A
 
 	def __call__(self,x,*args):
 		loss = 0
-		x = x[0,:,:]
 		for t in range(x.shape[0]-1):
-			loss += np.mean(( (x[t+1,:] - x[t,:])/self.dt + self.A@x[t+1,:] - (x[t+1,:].T@self.A@x[t+1,:])*x[t+1,:] )**2)
+			loss += np.mean(( (x[t+1,:] - x[t,:]) + self.dt*(self.A@x[t+1,:] - (x[t+1,:].T@self.A@x[t+1,:])*x[t+1,:] ) )**2)
 		quotient = rayleigh_quotient(self.A)
 		print('Quotient: ',quotient(x[-1,:]))
-		return(loss)
+		return(loss,quotient)
 
 class SubsetAutoEncoderInnerProduct:
 	def __init__(self,U_subenc,shots=1000,seed_simulator=42):

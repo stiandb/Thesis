@@ -14,7 +14,7 @@ import matplotlib.pylab as plt
 np.random.seed(7)
 X = np.random.randn(2,4)
 
-layer = GeneralLinear(n_qubits=1,n_outputs=2*3,n_weights_a=3*2,n_weights_ent=1,U_enc=AmplitudeEncoder(),U_a=EulerRotationAnsatz(linear_entangler),U_ent=EntanglementRotation(bias=True),shots=1000,seed_simulator=42)
+layer = GeneralLinear(n_qubits=1,n_outputs=2*3,n_weights_a=3,n_weights_ent=1,U_enc=AmplitudeEncoder(),U_a=EulerRotationAnsatz(linear_entangler),U_ent=EntanglementRotation(bias=True),shots=1000,seed_simulator=42)
 layers = [layer]
 autoencoder = SubsetAutoencoder(k=2,layers=layers,U_subenc=EulerRotationAnsatz(linear_entangler),k_encoders=False)
 

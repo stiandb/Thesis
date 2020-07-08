@@ -1,7 +1,7 @@
 from QATE import *
 import matplotlib.pylab as plt
 from utils import *
-from settings import ibmq_london_noise_model as noise_model, ibmq_london_basis_gates as basis_gates, ibmq_london_coupling_map as coupling_map
+
 
 n_fermi = 4
 n_spin_orbitals=8
@@ -24,11 +24,11 @@ for k in range(1,steps):
 	solver = QATE(n_spin_orbitals,H_0,H_1,initial_state,dt,t,seed_simulator=42)
 	E.append(solver.calculate_energy(early_stopping=k))
 
-
 solver = QATE(n_spin_orbitals,H_0,H_1,initial_state,dt,t,seed_simulator=42)
 E.append(solver.calculate_energy(steps))
 E = np.array(E)
 np.save('qate_4_8_1_5.npy',E)
+E = np.load('qate_4_8_1_5.npy')
 
 H,E_ref = PairingFCIMatrix()(int(n_fermi/2),int(n_spin_orbitals/2),1,5)
 eigvals, eigvecs = np.linalg.eigh(H)
