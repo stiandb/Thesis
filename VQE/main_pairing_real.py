@@ -9,8 +9,7 @@ IBMQ.load_account()
 my_provider = IBMQ.get_provider()
 backend  = my_provider.get_backend('ibmq_london')
 np.random.seed(42)
-print(qk.__version__)
-a = input()
+
 
 
 n_fermi = 2
