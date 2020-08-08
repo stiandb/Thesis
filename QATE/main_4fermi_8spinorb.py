@@ -1,6 +1,8 @@
 from QATE import *
 import matplotlib.pylab as plt
 from utils import *
+from qiskit import IBMQ
+
 
 
 n_fermi = 4
@@ -15,17 +17,17 @@ def initial_state(circuit,registers):
 	return(circuit,registers)
 
 
-steps=55
-dt = 0.2
+steps=100
+dt = 0.4
 t=steps*dt
-
+stop=14
 E = []
-for k in range(1,steps):
+for k in range(1,stop):
 	solver = QATE(n_spin_orbitals,H_0,H_1,initial_state,dt,t,seed_simulator=42)
 	E.append(solver.calculate_energy(early_stopping=k))
 
 solver = QATE(n_spin_orbitals,H_0,H_1,initial_state,dt,t,seed_simulator=42)
-E.append(solver.calculate_energy(steps))
+E.append(solver.calculate_energy(stop))
 E = np.array(E)
 np.save('qate_4_8_1_5.npy',E)
 E = np.load('qate_4_8_1_5.npy')

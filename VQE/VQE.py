@@ -6,20 +6,31 @@ from inspect import getfullargspec
 
 
 class VQE:
-	def __init__(self,hamiltonian_list,ansatz,n_qubits,ancilla=0,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,max_energy=False,transpile=False,seed_transpiler=None,optimization_level=1,coupling_map=None,error_mitigator=None,print_energies=False,regularization=None):
+	def __init__(self,hamiltonian_list,ansatz,n_qubits,ancilla=0,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,max_energy=False,transpile=False,seed_transpiler=None,optimization_level=1,coupling_map=None,error_mitigator=None,print_energies=False,get_variance=False):
 		"""
 		Inputs:
 			hamiltonian_list (list) - List containing each term of the hamiltionian
 			ansatz (function) - A function which accepts theta,circuit and registers as its arguments.
 								theta should be the parameters to solve for, circuit is the quantum circuit
-								registers is a list of qiskit registers where the ansatz register is the first entry
+								registers is a list of qiskit registers where the register to perform ansarz on is the first entry
 								and the classical register is the last.
 			n_qubits (int)    - The number of qubits in the ansatz register
 			ancilla (int)     - Some ansatzes requires ancilla register. This int specifies the number of ancilla qubits
 			shots (int) 	  - Specifies the number of times a circuit is run to evaluate expectation value
-			seed  (NoneType or int)       - Seed for circuit measurement.
+			seed_simulator  (NoneType or int)       - Seed for circuit measurement.
+			backend - 			backend for qiskit execute function
+			noise_model - 		Noise model when simulating noise
+			basis_gates 		- Qiskit basis gates
+			coupling_map 		-Coupling map for qiskit explaining connectivity between qubits
 			max_energy (boolean) 		  - If False (default), the minimum energy is approximated. The maximum
 											energy is approximated if True.
+			transpile (boolean) - If True, transpiler is used
+			seed_transpiler (int) - The seed to use for the transoiler
+			optimization_level (int) - The optimization level for the transpiler. 0 is no optimization,
+										3 is the heaviest optimization
+			error_mitigator (functional) - Returns filter for error correction
+			get_variance (boolean) - If True, the variance of the energy expectation value is measured
+			print_energies (boolean) - If True, the energy expectation is printed each evaluation
 
 		"""
 		self.hamiltonian_list = hamiltonian_list
@@ -46,9 +57,26 @@ class VQE:
 		self.error_mitigator = error_mitigator
 		self.print_energies=print_energies
 		self.theta = None
-		self.optimization = False
-		self.regularization = regularization
+		self.h2 = None
+		self.get_variance = get_variance
 
+
+	def measure_variance(self,theta,E):
+		hamiltonian_list=self.hamiltonian_list
+		if self.h2 is None:
+			h2 = []
+			for i in range(len(hamiltonian_list)):
+				for j in range(len(hamiltonian_list)):
+					temp = operator_product(hamiltonian_list[i],hamiltonian_list[j])
+					h2.append(temp)
+			self.h2 = h2
+		self.print_energies=False
+		self.get_variance = False
+		E2 = self.expectation_value(theta,self.h2)
+		self.get_variance = True
+		self.print_energies=True
+		var = E2 - E**2
+		return(var)
 
 
 
@@ -82,30 +110,15 @@ class VQE:
 			E += measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=self.seed_simulator,backend=self.backend,shots=self.shots,noise_model=self.noise_model,basis_gates=self.basis_gates,transpile=self.transpile,optimization_level=self.optimization_level,seed_transpiler=self.seed_transpiler,coupling_map=self.coupling_map,error_mitigator=self.error_mitigator)
 			if not self.seed_simulator is None:
 				self.seed_simulator += 1
-		reg = 0
-		if not self.regularization is None and hamiltonian_list is None:
-			reg = self.add_regularization(theta,self.regularization)
-			
-
 		if self.max_energy:
 			E = -E
 		if self.print_energies:
 			if hamiltonian_list is None:
 				print('<E> = ', E)
-				E += reg
-				print('E + reg:', E )
-				print('_______________')
-		if self.optimization:
-			self.energies.append(E - reg)
-			if not self.regularization is None:
-				self.energies_regularized.append(E)
+		if self.get_variance:
+			print(r'<E2> = ', np.real(self.measure_variance(theta,E)))
 		return(E)
-	def add_regularization(self,theta,regularization):
-		E = []
-		if not regularization is None:
-			for goal,lamb,hamiltonian_list in self.regularization:
-				E.append( lamb*(goal - self.expectation_value(theta,hamiltonian_list))**2)
-		return(sum(E))
+	
 
 
 	def classical_optimization(self,theta,method='Powell',options=None):

@@ -9,13 +9,18 @@ import scipy.special as special
 import itertools as it
 from pandas import *
 import inspect
+import sys
+
 
 class PairingFCIMatrix:
+	"""
+	Produces FCI matrix for Pairing Model.
+	Utilize call function to return matrix
+	"""
 	def __init__(self):
 		pass
 	def __call__(self,n_pairs,n_basis,delta,g):
 		"""
-		Produces FCI matrix for pairing hamiltonian
 		Inputs:
 			n_pairs (int) - Number of electron pairs
 			n_basis (int) - Number of spacial basis states (spin-orbitals / 2)
@@ -107,74 +112,10 @@ def QPE(circuit,registers, U):
 	return(circuit,registers)
 
 
-
-class TimeEvolutionOperatorAncilla:
-	def __init__(self,hamiltonian_list,dt,T):
-		self.hamiltonian_list = hamiltonian_list
-		self.dt = dt
-		self.T = T
-		self.iters = int(self.T/self.dt)
-
-	def step(self,circuit,registers,power=1):
-		"""
-		circuit (Qiskit QuantumCircuit) - 	quantum circuit to apply the time evolution operator to.
-		registers (list) - 					List containing quantum registers and classical register. 
-											The first register should be the register to apply the time evolution to.
-											The last register should be the classical register, while the second to last register 
-											should be the ancilla register to make the conditional operation required for the time evolution operation.
-		power (int) - 						What power to put the operator to (U^(power))
-		"""
-		dt = self.dt
-		for hamiltonian_term in self.hamiltonian_list:
-			factor = hamiltonian_term[0]
-			if factor == 0:
-				continue
-			qubit_and_gate = hamiltonian_term[1:]
-			if len(qubit_and_gate) == 0:
-				circuit.u1(-dt*power*factor, registers[0][0])
-				circuit.x(registers[0][0])
-				circuit.u1(-dt*power*factor, registers[0][0])
-				circuit.x(registers[0][0])
-				continue 
-			elif len(qubit_and_gate) == 1:
-				qubit= qubit_and_gate[0][0]
-				gate = qubit_and_gate[0][1]
-				if gate == 'x':
-					circuit.rx(2*dt*factor*power,registers[0][qubit])
-				elif gate == 'y':
-					circuit.ry(2*dt*factor*power,registers[0][qubit])
-				elif gate == 'z':
-					circuit.rz(2*dt*factor*power,registers[0][qubit])
-				continue
-
-			for qubit, gate in qubit_and_gate:
-				if gate == 'x':
-					circuit.h(registers[0][qubit])
-				elif gate == 'y':
-					circuit.rz(-np.pi/2,registers[0][qubit])
-					circuit.h(registers[0][qubit])
-				circuit.cx(registers[0][qubit],registers[-2][0])
-			circuit.rz(2*dt*factor*power,registers[-2][0])
-			for qubit, gate in qubit_and_gate:
-				circuit.cx(registers[0][qubit],registers[-2][0])
-				if gate == 'x':
-					circuit.h(registers[0][qubit])
-				if gate == 'y':
-					circuit.h(registers[0][qubit])
-					circuit.rz(np.pi/2,registers[0][qubit])
-		return(circuit,registers)
-
-	def __call__(self,circuit,registers, power=1):
-		"""
-		This function is used to start the time evolution simulation
-		See docstrings for the step function for variable explanation.
-		"""
-		for i in range(self.iters):
-			circuit,registers = self.step(circuit,registers,power=power)
-		return(circuit,registers)
-
-
 class TimeEvolutionOperator:
+	"""
+	Applies the Suzuki-Trotter approximation of the time evolution operator for an arbitrary Hamiltonian.
+	"""
 	def __init__(self,hamiltonian_list,dt,T,inverse=False):
 		self.hamiltonian_list = hamiltonian_list
 		self.dt = dt
@@ -278,9 +219,26 @@ def qpe_pairing_initial_state(circuit,registers):
 	return(circuit, registers)
 
 class SimplePairingAnsatz:
+	"""
+	Applies a simple, one-parameter VQE ansats for Pairing model
+	with one pair and two spin-orbitals
+	"""
 	def __init__(self,inverse=False):
+		"""
+		Input:
+			inverse (boolean) - Putting this to True will apply the inverse of the ansatz.
+		"""
 		self.inverse = inverse
 	def __call__(self,theta,circuit,registers):
+		"""
+		Input:
+			theta (numpy 1d array) - The parameter for the ansatz
+			circuit (qiskit QuantumCiruit) - The circuit to perform the ansatz on.
+			registers (list) - List containing qiskit QuantumRegister to perform ansatz on as first register
+		Output:
+			circuit (qiskit QuantumCircuit) - The circuit with applied ansatz
+			registers (list) - Corresponding registers
+		"""
 		ansatz_circuit = qk.QuantumCircuit()
 		for register in registers:
 			ansatz_circuit.add_register(register)
@@ -296,19 +254,11 @@ class SimplePairingAnsatz:
 		return(circuit,registers)
 
 
-def simple_pairing_ansatz(theta,circuit,registers):
-	circuit.ry(theta[0],registers[0][0])
-	circuit.cx(registers[0][0],registers[0][1])
-	circuit.x(registers[0][1])
-	circuit.cx(registers[0][1],registers[0][2])
-	circuit.cx(registers[0][1],registers[0][3])
-	circuit.x(registers[0][1])
-	return(circuit,registers)
-
 
 class ControlledTimeEvolutionOperator:
 	"""
-	This class performs the trotter approximation of the time evolution operation for an arbitrary hamiltonian.
+	This class performs the Suzuki-Trotter approximation of the time evolution operation for an arbitrary hamiltonian.
+	The operation is conditioned on an ancilla
 	"""
 	def __init__(self,hamiltonian_list,dt,T):
 		"""
@@ -385,6 +335,9 @@ class ControlledTimeEvolutionOperator:
 		"""
 		This function is used to start the time evolution simulation
 		See docstrings for the step function for variable explanation.
+		Output:
+			circuit (qiskit QuantumCircuit) - Circuit with applied controlled time evolution
+			registers (list) - The corresponding registers in a list.
 		"""
 		for i in range(self.iters):
 			circuit,registers = self.step(circuit,registers,control=control,power=power)
@@ -446,10 +399,16 @@ def pauli_expectation_transformation(qubit,gate,circuit,registers):
 		return(circuit,registers)
 
 class ErrorMitigation:
+	"""
+	Class to return filter for error reduction
+	"""
 	def __init__(self):
 		self.filters = {}
 
 	def __call__(self,n_qubits,qubit_list,backend,seed_simulator=None,noise_model=None,basis_gates=None,coupling_map=None,shots=1000,transpile=False,seed_transpiler=None,optimization_level=1,initial_layout=None):
+		"""
+		See method get_meas_filter for argument explanation
+		"""
 		try:
 			self.filters[str(qubit_list).strip('[]')]
 		except:
@@ -458,14 +417,33 @@ class ErrorMitigation:
 		return(meas_filter)
 
 	def get_meas_fitter(self,n_qubits,qubit_list,backend,seed_simulator=None,noise_model=None,basis_gates=None,coupling_map=None,shots=1000,transpile=False,seed_transpiler=None,optimization_level=1,initial_layout=None):
+		"""
+		Returns the error correction filter
+		Input:
+			n_qubits (int) - the number of qubits utilized for circuit
+			qubit_list (list) - A list containing the index of each measured qubit
+			backend - The qiskit backend.
+			seed_simulator (int or None) - The seed to be utilized when simulating quantum computer
+			noise_model - The qiskit noise model to utilize when simulating noise.
+			basis_gates - The qiskit basis gates allowed to utilize
+			coupling_map - The coupling map which explains the connection between each qubit
+			shots (int) - How many times to measure circuit
+			transpile (boolean) - If True, transpiler is used
+			seed_transpiler (int) - The seed to use for the transoiler
+			optimization_level (int) - The optimization level for the transpiler. 0 is no optimization,
+										3 is the heaviest optimization
+			initial_layout - Deprecated
+		Output:
+			meas_filer - The filter to mitigate noise from circuit results.
+		"""
 		register = qk.QuantumRegister(n_qubits)
-		meas_calibs, state_labels = complete_meas_cal(qr=register,circlabel='mcal')#complete_meas_cal(qubit_list,qr=register,circlabel='mcal')
+		meas_calibs, state_labels = complete_meas_cal(qr=register,circlabel='mcal')
 		if transpile:
 			meas_calibs = qk.compiler.transpile(meas_calibs,backend=backend,backend_properties=backend.properties(),seed_transpiler=seed_transpiler,optimization_level=optimization_level,basis_gates=basis_gates,coupling_map=coupling_map)
 			layout = meas_calibs[0]._layout.get_virtual_bits()
 			qubit_list = [list(layout.values())[key] for key in qubit_list]
-
-		job = qk.execute(meas_calibs,
+		if not noise_model is None:
+			job = qk.execute(meas_calibs,
 					  backend=backend,
 					  shots=shots,
 					  noise_model=noise_model,
@@ -473,6 +451,14 @@ class ErrorMitigation:
 					  basis_gates=basis_gates,
 					  seed_simulator=seed_simulator
 					  )
+		else:
+			job = qk.execute(meas_calibs,
+						  backend=backend,
+						  shots=shots,
+						  coupling_map=coupling_map,
+						  basis_gates=basis_gates,
+						  seed_simulator=seed_simulator
+						  )
 		calibration_results = job.result()
 		meas_fitter = CompleteMeasFitter(calibration_results, state_labels, circlabel='mcal')
 		meas_fitter = meas_fitter.subset_fitter(qubit_list)
@@ -482,12 +468,38 @@ class ErrorMitigation:
 def measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,shots=1000,transpile=False,seed_transpiler=None,optimization_level=1,coupling_map=None,error_mitigator=None,initial_layout=None):
 	"""
 	Measures qubits and calculates eigenvalues
+	Input:
+			qubit_list (list) - A list containing the index of each qubit to be measured
+			factor (float) - The factor in front of the Hamiltonian term.
+			circuit (qiskit QuantumCircuit) - The circuit to be measured
+			registers (list) - List containing Qiskit registers that belongs to circuit.
+			backend - The qiskit backend.
+			seed_simulator (int or None) - The seed to be utilized when simulating quantum computer
+			noise_model - The qiskit noise model to utilize when simulating noise.
+			basis_gates - The qiskit basis gates allowed to utilize
+			coupling_map - The coupling map which explains the connection between each qubit
+			shots (int) - How many times to measure circuit
+			transpile (boolean) - If True, transpiler is used
+			seed_transpiler (int) - The seed to use for the transoiler
+			optimization_level (int) - The optimization level for the transpiler. 0 is no optimization,
+										3 is the heaviest optimization
+	Output:
+			Returns the measured expectation value.
 	"""
 	circuit.measure([registers[0][qubit] for qubit in qubit_list],registers[-1])
 	if transpile:
 		circuit = qk.compiler.transpile(circuit,backend=backend,backend_properties=backend.properties(),seed_transpiler=seed_transpiler,optimization_level=optimization_level,basis_gates=basis_gates,coupling_map=coupling_map)
 		initial_layout = circuit._layout.get_virtual_bits()
-	job = qk.execute(circuit, backend = backend,seed_simulator=seed_simulator,shots=shots,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map).result()
+	if noise_model is None:
+		job = qk.execute(circuit, backend = backend,seed_simulator=seed_simulator,shots=shots,basis_gates=basis_gates,coupling_map=coupling_map)
+		try:
+			if not job.error_message() is None:
+				print(job.error_message())
+		except:
+			None
+		job = job.result()
+	else:
+		job = qk.execute(circuit, backend = backend,seed_simulator=seed_simulator,shots=shots,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map).result()
 	if not error_mitigator is None:
 		try:
 			n_qubits = circuit.n_qubits
@@ -513,6 +525,12 @@ def measure_expectation_value(qubit_list,factor,circuit,registers,seed_simulator
 def initialize_circuit(n_qubits,n_ancilla,classical_bits):
 	"""
 	Initializes circuits for experiment
+	Input:
+		n_qubits (int) - The number of qubits to be used for first register of circuit
+		n_ancilla (int) - The number of qubits to be used for second register of circuit
+		classical_bits (int) - The number of qubits to measure
+	Output:
+		(circuit,registers) - Returns circuit and also returns the registers in a list
 	"""
 	simulation_register = qk.QuantumRegister(n_qubits)
 	classical_register = qk.ClassicalRegister(classical_bits)
@@ -603,9 +621,30 @@ class EulerRotationAnsatz:
 		return(circuit,registers)
 
 def identity_circuit(circuit,registers,inverse=False):
+	"""
+	Applies no operation to circuit. Identity operation
+	Input:
+		circuit (qiskit QuantumCircuit) - circuit to apply the idenity operation to
+		registers (list) - A list containing the registers of circuit
+		inverse (boolean) - The inverse is applied if set to True (does nothing for identity operation)
+	Output:
+		circuit (qiskit QuantumCircuit) - The resulting circuit (identical to input)
+		registers (list) - List containing the corresponding registers
+	"""
 	return(circuit,registers)
 
 def identity_ansatz(theta,circuit,registers):
+	"""
+	Applies no operation to circuit. Identity ansatz
+	Input:
+		theta (numpy 1d array) - Array containing rotation parameters
+		circuit (qiskit QuantumCircuit) - circuit to apply the idenity operation to
+		registers (list) - A list containing the registers of circuit
+		inverse (boolean) - The inverse is applied if set to True (does nothing for identity operation)
+	Output:
+		circuit (qiskit QuantumCircuit) - The resulting circuit (identical to input)
+		registers (list) - List containing the corresponding registers
+	"""
 	return(circuit,registers)
 
 def linear_entangler(circuit,registers):
@@ -624,10 +663,26 @@ def linear_entangler(circuit,registers):
 	return(circuit,registers)
 
 class LinearRotationEntangler:
+	"""
+	Applies a controlled y-rotation on qubit i+1 conditional on qubit i
+	"""
 	def __init__(self,n_qubits):
+		"""
+		Input:
+			n_qubits (int) - The number of qubits used for the ansatz
+		"""
 		self.n_qubits = n_qubits
 		self.n_params = n_qubits
 	def __call__(self,theta,circuit,registers):
+		"""
+		Input:
+			theta (numpy 1d array) - The rotational parameters for ansatz
+			circuit (qiskit QuantumCircuit) - The circuit to apply ansatz to
+			reigsters (list) - List containing qubit register to apply ansatz on as first element.
+		Output:
+			circuit (qiskit QuantumCircuit) - The circuit with an applied ansatz on
+			registers (list) - List containing the corresponding registers
+		"""
 		for i in range(len(registers[0])-1):
 			circuit.cry(theta[i],registers[0][i],registers[0][i+1])
 		return(circuit,registers)
@@ -635,7 +690,22 @@ class LinearRotationEntangler:
 
 
 class UCCSD:
+	"""
+	Applies the Unitary Coupled Cluster ansatz to qubits. Either singles, doubles or both
+	"""
 	def __init__(self,n_fermi,n_spin_orbitals,initial_state,t,dt=1,T=1,singles=True,doubles=True):
+		"""
+		Input:
+			n_fermi (int) - the number of particles
+			n_spin_orbitals (int) - the number of spin orbitals
+			initial_state (functional) - A function initial_sate(circuit,registers)
+										which return circuit,registers 
+			t (numpy 1d array) - The cluster amplitudes
+			dt (float)  - The time step for the time evolution operation
+			T (float)   - evolution time for the time evolution operation
+			singles (boolean) - if True, we apply single excitations
+			doubles (boolean) - if True, we apply double excitations
+		"""
 		self.n_fermi = n_fermi
 		self.n_spin_orbitals = n_spin_orbitals
 		self.singles = singles
@@ -648,6 +718,16 @@ class UCCSD:
 
 
 	def __call__(self,t,circuit,registers):
+		"""
+		Utilize this after initialization to return circuit and registers with applied UCCSD ansatz
+		Input:
+			t (numpy 1d array) - cluster amplitudes
+			circuit (qiskit QuantumCircuit) - The circuit to apply the UCCSD ansats on
+			registers (list) - List containing the qiskit QuantumCircuit to apply the ansatz on as first element
+		Output:
+			circuit (qiskit QuantumCircuit) - The circuit with an applied UCCSD ansatz on
+			registers (list) - List containing the corresponding registers
+		"""
 		singles = self.singles
 		doubles = self.doubles
 		if singles and not doubles:
@@ -771,6 +851,8 @@ class PairingUCCD:
 		Input:
 			n_fermi (int) - The number of particles in the system
 			n_spin_orbitals (int) - The number of spin orbitals in the system
+			initial_state (functional) - A function initial_sate(circuit,registers)
+										which return circuit,registers 
 			t (numpy array) - 1D array with the UCCD amplitudes
 			dt (float) - Time step in the trotter approximation
 			T (float) - Total time in the trotter approximation
@@ -846,7 +928,17 @@ class PairingUCCD:
 
 
 class PairingSimpleUCCDAnsatz:
+	"""
+	Simplified UCCD ansatz for Pairing Hamiltonian with one pair and four spin-orbitals
+	"""
 	def __init__(self,initial_state,dt=1,T=1):
+		"""
+		Input:
+			initial_state (functional) - A function initial_sate(circuit,registers)
+										which return circuit,registers 
+			dt (float) - Time step in the trotter approximation
+			T (float) - Total time in the trotter approximation
+		"""
 		self.n_fermi = 2
 		self.n_spin_orbitals = 4
 		self.hamiltonian_list = []
@@ -856,6 +948,17 @@ class PairingSimpleUCCDAnsatz:
 
 
 	def __call__(self,theta,circuit,registers):
+		"""
+		Input:
+			theta (numpy array) - 1D array with the UCCD amplitudes
+			circuit (qiskit QuantumCircuit) - The circuit to apply the UCCD ansatz to
+			registers (list) - List containing qiskit registers. The first register should be the one to apply the ansatz to.
+								the second to last should be an ancilla register
+								the final should be the classical register
+		Outputs:
+			circuit (qiskit QuantumCircuit) - The circuit with an applied UCCD ansatz
+			registers (list) - List containing the corresponding registers
+		"""
 		i=0
 		j=i+1
 		a=2
@@ -994,6 +1097,7 @@ class AmplitudeEncoder:
 		"""
 		Input:
 			eps (float) - In case of zero vectors, this is used to prevent dividing by zero when normalizing the dataset
+			inverse (boolean) - If True, the inverse of the Amplitude encoding is applied on circuit
 		"""
 		self.eps=eps
 		self.n_qubits = None
@@ -1180,54 +1284,15 @@ def squared_inner_product(x,y,circuit,registers,shots=1000,backend=qk.Aer.get_ba
 	return(inner_product)
 
 
-def inference_inner_product(cU_a,cU_b,circuit,registers,shots=1000,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None,basis_gates=None,transpile=False,seed_transpiler=None,optimization_level=1,coupling_map=None,error_mitigator=None):
-	ancilla_register = qk.QuantumRegister(1)
-	circuit.add_register(ancilla_register)
-	registers.insert(-1,ancilla_register)
-	circuit.h(ancilla_register[0])
-	circuit.x(ancilla_register[0])
-	circuit,registers = cU_a(circuit,registers)
-	circuit.x(ancilla_register[0])
-	circuit,registers = cU_b(circuit,registers)
-	circuit.h(ancilla_register[0])
-	circuit.measure(ancilla_register,registers[-1])
-	if transpile:
-		circuit = qk.compiler.transpile(circuit,backend=backend,backend_properties=backend.properties(),seed_transpiler=seed_transpiler,optimization_level=optimization_level,basis_gates=basis_gates,coupling_map=coupling_map)
-	job = qk.execute(circuit, backend = backend, shots=shots,seed_simulator=seed_simulator,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map).result()
-	if not error_mitigator is None:
-		meas_filter = error_mitigator(circuit.num_qubits,[-1],backend,seed_simulator=seed_simulator,noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map,shots=shots)
-		result = meas_filter.apply(job)
-		result = result.get_counts(circuit)
-	else:
-		result = job.get_counts(circuit)
-	inner_product = 0
-	for key,value in result.items():
-		if key == '0':
-			inner_product += value
-	inner_product /= shots
-	inner_product -= 0.5
-	inner_product *= 2
-	return(inner_product)
-
-
-
-def pair_number_operator(n_spin_orbitals):
-	hamiltonian_list = []
-	for i in range(1,n_spin_orbitals,2):
-		hamiltonian_list.extend([[0.25,[i,'z']],[0.25,[i-1,'z']],[0.25,[i-1,'z'],[i,'z']],[0.25]])
-	return(hamiltonian_list)
-
-def particle_number_operator(n_spin_orbitals):
-	hamiltonian_list = []
-	for i in range(n_spin_orbitals):
-		hamiltonian_list.extend([[0.5,[i,'z']],[0.5]])
-	return(hamiltonian_list)
-
-
 
 
 class YRotationAnsatz:
 	def __init__(self,entangler=None,inverse=False):
+		"""
+		Input:
+			entangler (None or function) - entangler(circuit,register) returns circuit,registers with applied entanglement operation
+			inverse (boolearn) - If True, the inverse of the y-rotation ansatz is applied to circuit
+		"""
 		self.inverse = inverse
 		self.entangler = entangler 
 
@@ -1264,6 +1329,3 @@ class YRotationAnsatz:
 			ansatz_circuit = ansatz_circuit.inverse()
 		circuit += ansatz_circuit
 		return(circuit,registers)
-
-
-

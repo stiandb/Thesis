@@ -24,6 +24,17 @@ registers= [q_r,c_r]
 circuit,registers = TimeEvolution(0,circuit,registers)
 c_depth_TE = circuit.depth()
 
+q_r = qk.QuantumRegister(4)
+c_r = qk.ClassicalRegister(4)
+circuit = qk.QuantumCircuit(q_r,c_r)
+registers= [q_r,c_r]
+op = TimeEvolutionOperator(hamiltonian,dt=1,T=1,inverse=False)
+circuit.x(registers[0][-1])
+circuit.x(registers[0][-2])
+circuit, registers = op.step(circuit,registers)
+circuit.measure(registers[0],registers[-1])
+c_depth_TE = circuit.depth()
+
 
 ansatz = EulerRotationAnsatz(linear_entangler)
 encoder = AutoEncoder(ansatz,TimeEvolution,n_qubits=4,n_weights=3*4*3)

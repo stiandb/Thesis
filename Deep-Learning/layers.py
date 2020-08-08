@@ -7,7 +7,48 @@ from dl_utils import *
 
 
 class GeneralLinear:
+	"""
+	Calculates a dense quantum layer consisting of an arbitrary encoder, ansatz and entangler
+	"""
 	def __init__(self,n_qubits=None,n_outputs=None,n_weights_a=None,n_weights_ent=None,U_enc=None,U_a=None,U_ent=None,bias=False,n_parallel = 1,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,classical_bits=None,coupling_map=None,transpile=False,seed_transpiler=None,optimization_level=1,error_mitigator=None):
+		"""
+		Input:
+			n_qubits (int) - The number of qubits required for encoding and ansatz
+			n_outputs (int) - The number of outputs/activations per data sample
+			n_weights_a (int) - The number of weights required per activation for ansatz
+			n_weights_ent (int) - The number of weights required per activation for entangler
+			U_enc (callable) - The encoder for the layer. U_enc(theta,circuit,registers) returns circuit,registers
+								with encoding applied to circuit. theta is a 1d numpy array containing inputs for encoder.
+								circuit is the qiskit QuantumCircuit to apply the encoder to. registers is a list containing the
+								qiskit QuantumRegister with encoder qubits as first element
+			U_a (callable)   - The ansatz for the layer. U_a(theta,circuit,registers) returns circuit,registers
+								with ansatz applied to circuit. theta is a 1d numpy array containing inputs for ansatz.
+								circuit is the qiskit QuantumCircuit to apply the ansatz to. registers is a list containing the
+								qiskit QuantumRegister with ansatz qubits as first element
+			U_ent (callable) - The entangler for the layer. Entangles the encoded/ansatz register with the ancilla register.
+								U_ent(theta,ancilla,circuit,registers) returns circuit,registers with entangler applied.
+								theta is a 1d numpy array containing input for entangler. ancilla is the index of the qubit in the
+								ancilla-register to entangle with the encoder/ansatz-register. circuit is the qiskit QuantumCircuit
+								to apply the entangler on. registers is a list containing the encoder qiskit QuantumRegister as its
+								first element, while the ancilla qiskit QuantumRegister is its second element.
+			bias (boolean)   - Only used when U_enc and U_a is the amplitude encoder, such that we are calculating a classical neural
+								network layer on the quantum computer. If bias is put to True, we add a bias to the calculation of each
+								activation
+			n_parallel (int) - If put larger than 1 and the entangler allows for parallel calculatation of activation, we calculate n_parallel 
+								activations in parallel.
+			backend - The qiskit backend.
+			seed_simulator (int or None) - The seed to be utilized when simulating quantum computer
+			noise_model - The qiskit noise model to utilize when simulating noise.
+			basis_gates - The qiskit basis gates allowed to utilize
+			coupling_map - The coupling map which explains the connection between each qubit
+			shots (int) - How many times to measure circuit
+			transpile (boolean) - If True, transpiler is used
+			seed_transpiler (int) - The seed to use for the transoiler
+			optimization_level (int) - The optimization level for the transpiler. 0 is no optimization,
+										3 is the heaviest optimization
+			error_mitigator (callable) - a callable that returns the filter for error reduction
+			classical_bits (None or int) - Only to be specified as an int if one (for some reason) wants to measure several qubits
+		"""
 		self.shots = shots
 		self.n_qubits= n_qubits
 		self.n_outputs = n_outputs
@@ -38,6 +79,14 @@ class GeneralLinear:
 		self.bias = bias
 
 	def set_weights(self,w,w_idx=0):
+		"""
+		Sets the weights for the layer.
+		Input:
+			w (numpy 1d array) - Array containing all weights for layer
+			w_idx (int)        - The starting index of w to use as weights
+		Output:
+			w_idx (int) 		- The ending index of w that was used as weights
+		"""
 		if self.n_parallel > 1:
 			self.w_a = w[w_idx:(w_idx+self.n_weights_a)].copy().reshape(1,self.n_weights_a)
 			w_idx += self.n_weights_a
@@ -49,6 +98,13 @@ class GeneralLinear:
 		return(w_idx)
 
 	def __call__(self,x):
+		"""
+		Feed forwards data through layer
+		Input:
+			x (numpy array) - n times p array, where n is the number of samples and p is the number of predictors
+		Output:
+			output (numpy array) - n times n_a array, where n is the number of samples and n_a is the number of activations for layer
+		"""
 		output = np.zeros((x.shape[0],self.n_outputs))
 		for sample in range(x.shape[0]):
 			if self.bias:
@@ -112,7 +168,48 @@ class GeneralLinear:
 
 
 class GeneralRecurrent:
+	"""
+	Calculates a dense quantum layer consisting of an arbitrary encoder, ansatz and entangler
+	"""
 	def __init__(self,n_qubits=None,n_hidden=None,n_weights_a=None,n_weights_ent=None,U_enc=None,U_a=None,U_ent=None,bias=False,n_parallel=1,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,coupling_map=None,transpile=False,seed_transpiler=None,optimization_level=1,error_mitigator=None):
+		"""
+		Input:
+			n_qubits (int) - The number of qubits required for input and hidden vector encoding and ansatz
+			n_hidden (int) - The dimension of hidden feature vector
+			n_weights_a (int) - The number of weights required per activation for ansatz
+			n_weights_ent (int) - The number of weights required per activation for entangler
+			U_enc (callable) - The encoder for the layer. U_enc(theta,circuit,registers) returns circuit,registers
+								with encoding applied to circuit. theta is a 1d numpy array containing inputs for encoder.
+								circuit is the qiskit QuantumCircuit to apply the encoder to. registers is a list containing the
+								qiskit QuantumRegister with encoder qubits as first element
+			U_a (callable)   - The ansatz for the layer. U_a(theta,circuit,registers) returns circuit,registers
+								with ansatz applied to circuit. theta is a 1d numpy array containing inputs for ansatz.
+								circuit is the qiskit QuantumCircuit to apply the ansatz to. registers is a list containing the
+								qiskit QuantumRegister with ansatz qubits as first element
+			U_ent (callable) - The entangler for the layer. Entangles the encoded/ansatz register with the ancilla register.
+								U_ent(theta,ancilla,circuit,registers) returns circuit,registers with entangler applied.
+								theta is a 1d numpy array containing input for entangler. ancilla is the index of the qubit in the
+								ancilla-register to entangle with the encoder/ansatz-register. circuit is the qiskit QuantumCircuit
+								to apply the entangler on. registers is a list containing the encoder qiskit QuantumRegister as its
+								first element, while the ancilla qiskit QuantumRegister is its second element.
+			bias (boolean)   - Only used when U_enc and U_a is the amplitude encoder, such that we are calculating a classical neural
+								network layer on the quantum computer. If bias is put to True, we add a bias to the calculation of each
+								activation
+			n_parallel (int) - If put larger than 1 and the entangler allows for parallel calculatation of activation, we calculate n_parallel 
+								activations in parallel.
+			backend - The qiskit backend.
+			seed_simulator (int or None) - The seed to be utilized when simulating quantum computer
+			noise_model - The qiskit noise model to utilize when simulating noise.
+			basis_gates - The qiskit basis gates allowed to utilize
+			coupling_map - The coupling map which explains the connection between each qubit
+			shots (int) - How many times to measure circuit
+			transpile (boolean) - If True, transpiler is used
+			seed_transpiler (int) - The seed to use for the transoiler
+			optimization_level (int) - The optimization level for the transpiler. 0 is no optimization,
+										3 is the heaviest optimization
+			error_mitigator (callable) - a callable that returns the filter for error reduction
+			classical_bits (None or int) - Only to be specified as an int if one (for some reason) wants to measure several qubits
+		"""
 		self.shots = shots
 		self.n_hidden = n_hidden
 		self.n_outputs = n_hidden
@@ -145,6 +242,14 @@ class GeneralRecurrent:
 
 	
 	def set_weights(self,w,w_idx=0):
+		"""
+		Sets the weights for the layer.
+		Input:
+			w (numpy 1d array) - Array containing all weights for layer
+			w_idx (int)        - The starting index of w to use as weights
+		Output:
+			w_idx (int) 		- The ending index of w that was used as weights
+		"""
 		if self.n_parallel > 1:
 			self.wxa = w[w_idx:(w_idx+self.n_weights_a)].copy().reshape(1,self.n_weights_a)
 			w_idx += self.n_weights_a
@@ -156,6 +261,18 @@ class GeneralRecurrent:
 		return(w_idx)
 
 	def __call__(self,x,h_0 = None):
+		"""
+		Feed forwards data through layer
+		Input:
+			x (numpy array) - n times t times p array, where n is the number of samples, t is the number of time steps and
+								p is the number of predictors per time step
+			h_0 (None or numpy array) - initial hidden feature vector. If None, it is initialized with zeroes. If specified,
+										it needs to be initialized as 1d numpy array with dimension matching n_hidden (see __init__)
+		Output:
+			output (numpy array) - Hidden feature vector every time step.
+									n times t times h array. Where n is the number of samples, t is the number of time steps and
+									h is the dimension of hidden feature vector
+		"""
 		if h_0 is None:
 			h_0 = np.ones(self.n_hidden)
 		timesteps = x.shape[1]
@@ -173,6 +290,14 @@ class GeneralRecurrent:
 				if not self.seed_simulator is None:
 					self.seed_simulator+=1
 		return(h)
+
+
+"""
+All the below layers can be implemented with the usage of GeneralLinear and GeneralRecurrent. Old functionality
+"""
+
+
+
 
 class AnsatzLinear:
 	def __init__(self,n_inputs=None,n_outputs=None,n_weights=None,ansatz=None,shots=1000,seed_simulator=None,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=None,basis_gates=None,coupling_map=None,transpile=False,seed_transpiler=None,optimization_level=1,error_mitigator=None):

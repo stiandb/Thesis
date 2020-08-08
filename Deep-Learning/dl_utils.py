@@ -2,7 +2,15 @@ import numpy as np
 
 
 class Utils:
+	"""
+	Some utilities to be utilized by neural networks
+	"""
 	def set_weights(self,w):
+	"""
+	Sets the weights to w for neural network constructed with class QDNN
+	Input:
+		w (numpy 1d array) - Array of all weights for neural network
+	"""
 		w_idx = 0
 		w = w.flatten()
 		for layer in self.layers:
@@ -14,9 +22,27 @@ class Utils:
 
 
 class YRotation:
+	"""
+	Performs y-rotation conditioned on encoded register to an ancilla register
+	"""
 	def __init__(self,bias=False):
+		"""
+		Input:
+			bias (boolean) - Applies non-conditional rotation (bias) to ancilla qubit if set to True
+		"""
 		self.bias = bias
 	def __call__(self,weights,ancilla,circuit,registers):
+		"""
+		Input:
+			weights (numpy 1d array) - Weights for ansatz
+			ancilla (int) - Index of ancilla qubit to apply conditional rotation to
+			circuit (qiskit QuantumCircuit) - circuit for neural network
+			registers (list) - List containing encoded register as first element, while 
+								the second element is the ancilla register
+		Output:
+			circuit (qiskit QuantumCircuit) - Circuit with applied entangler on
+			registers (list) - List containing corresponding registers
+		"""
 		if self.bias:
 			circuit.ry(weights[-1],registers[1][ancilla])
 		n = len(registers[0])
@@ -24,25 +50,30 @@ class YRotation:
 			circuit.cry(weights[i],registers[0][i],registers[1][ancilla])
 		return(circuit,registers)
 
-class YRotationZeroOne:
-	def __init__(self,bias=False):
-		self.bias = bias
-	def __call__(self,weights,ancilla,circuit,registers):
-		if self.bias:
-			circuit.ry(weights[-1],registers[1][ancilla])
-		n = len(registers[0])
-		for i in range(n):
-			circuit.cry(weights[i],registers[0][i],registers[1][ancilla])
-		for i in range(n):
-			circuit.x(registers[0][i])
-			circuit.cry(weights[n+i],registers[0][i],registers[1][ancilla])
-		return(circuit,registers)
 
 
 class EulerRotation:
+	"""
+	Performs Euler-rotation conditioned on encoded register to an ancilla register
+	"""
 	def __init__(self,bias=False):
+		"""
+		Input:
+			bias (boolean) - Applies non-conditional rotation (bias) to ancilla qubit if set to True
+		"""
 		self.bias = bias
 	def __call__(self,weights,ancilla,circuit,registers):
+		"""
+		Input:
+			weights (numpy 1d array) - Weights for ansatz
+			ancilla (int) - Index of ancilla qubit to apply conditional rotation to
+			circuit (qiskit QuantumCircuit) - circuit for neural network
+			registers (list) - List containing encoded register as first element, while 
+								the second element is the ancilla register
+		Output:
+			circuit (qiskit QuantumCircuit) - Circuit with applied entangler on
+			registers (list) - List containing corresponding registers
+		"""
 		i = 0
 		n = len(registers[0])
 		if self.bias:
@@ -55,16 +86,36 @@ class EulerRotation:
 		return(circuit,registers)
 
 class EntanglementRotation:
+	"""
+	Flips ancilla qubit if all encoded qubits are in the zero or one-state
+	"""
 	def __init__(self,bias=False,zero_condition=False):
+		"""
+		Input:
+			bias (boolean) - If True, a rotation (bias) is applied to the ancilla qubit
+			zero_condition (boolean) - If True, the flip of the ancilla is conditioned on the
+										encoded qubits being in the zero state. Else, it is conditioned
+										on the encoded qubits being in the one state.
+		"""
 		self.bias=bias
 		self.zero_condition=zero_condition
 	def __call__(self,weights,ancilla,circuit,registers):
+		"""
+		Input:
+			weights (numpy 1d array) - Weights for ansatz
+			ancilla (int) - Index of ancilla qubit to apply conditional rotation to
+			circuit (qiskit QuantumCircuit) - circuit for neural network
+			registers (list) - List containing encoded register as first element, while 
+								the second element is the ancilla register
+		Output:
+			circuit (qiskit QuantumCircuit) - Circuit with applied entangler on
+			registers (list) - List containing corresponding registers
+		"""
 		if self.zero_condition:
 			for i in range(len(registers[0])):
 				circuit.x(registers[0][i])
 		if self.bias:
-			circuit.mcrx(weights[0],[registers[0][i] for i in range(len(registers[0]))],registers[1][ancilla])
-		else:
-			circuit.mcrx(np.pi,[registers[0][i] for i in range(len(registers[0]))],registers[1][ancilla])
+			circuit.ry(weights[0],registers[1][ancilla])
+		circuit.mcrx(np.pi,[registers[0][i] for i in range(len(registers[0]))],registers[1][ancilla])
 		return(circuit,registers)
 

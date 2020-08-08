@@ -4,6 +4,24 @@ from utils import *
 
 class HamiltonianSimulation:
 	def __init__(self,u_qubits,t_qubits,hamiltonian_list,initial_state,shots=1000,backend=qk.Aer.get_backend('qasm_simulator'),seed_simulator=None,noise_model=None,basis_gates=None,coupling_map=None,transpile=False,seed_transpiler=None,optimization_level=1,error_mitigator=None):
+		"""
+		Input:
+			u_qubits (int) - the number of qubits to utilize for the u-register in the QPE algorithm
+			t_qubits (int) - the number of qubits to utilize for the t-register in the QPE algorithm
+			hamiltonian_list (list) - List containing the hamiltonian terms for the QPE algorthm
+			initial_state (functional) - initial_state(circuit,registers) returns circuit,registers in some initial state
+			backend - The qiskit backend.
+			seed_simulator (int or None) - The seed to be utilized when simulating quantum computer
+			noise_model - The qiskit noise model to utilize when simulating noise.
+			basis_gates - The qiskit basis gates allowed to utilize
+			coupling_map - The coupling map which explains the connection between each qubit
+			shots (int) - How many times to measure circuit
+			transpile (boolean) - If True, transpiler is used
+			seed_transpiler (int) - The seed to use for the transoiler
+			optimization_level (int) - The optimization level for the transpiler. 0 is no optimization,
+										3 is the heaviest optimization
+			error_mitigator (functional) - a function that returns the filter for error correction
+		"""
 		self.hamiltonian_list = hamiltonian_list
 		self.u_qubits = u_qubits
 		self.t_qubits = t_qubits
@@ -23,12 +41,32 @@ class HamiltonianSimulation:
 		self.error_mitigator = error_mitigator
 
 	def __call__(self,dt,t):
+		"""
+		Input:
+			dt (float) - The time step of the time evolution operation
+			t (float) - The evolution time for the time evolution oepration
+		Output:
+			circuit,registers:
+				circuit (qiskit QuantumCircuit) - Circuit with applied QPE operation on
+				registers (List) - List containing the u-register as first element, t-register as second element,
+									and classical register as final element
+		"""
 		self.circuit,self.registers = self.initial_state(self.circuit,self.registers)
 		self.registers.insert(0,self.t_register)
 		U = ControlledTimeEvolutionOperator(self.hamiltonian_list,dt,t)
 		return(QPE(self.circuit,self.registers,U))
 
 	def measure_eigenvalues(self,dt,t,E_max):
+		"""
+		Performs the QPE algorithm and measures the circuit to yield eigenvalue spectra
+		Input:
+			dt (float) - The time step of the time evolution operation
+			t (float) - The evolution time for the time evolution oepration
+			E_max (float) - The constant subtracted from Hamiltonian to yield complete eigenvalue spectra
+		Output:
+			x (numpy array) - array containing the energies measured
+			y (numpy array) - array containing the number of times each energy was measured.
+		"""
 		self.circuit,self.registers = self.__call__(dt,t)
 		self.circuit.measure(self.registers[0],self.registers[-1])
 		if self.transpile:
@@ -40,12 +78,12 @@ class HamiltonianSimulation:
 				n_qubits = self.circuit.num_qubits
 			except:
 				n_qubits = self.circuit.n_qubits
-			qubit_list = list(range(len(registers[0])),n_qubits)
-			meas_filter = error_mitigator(n_qubits,qubit_list,self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
+			qubit_list = list(range(len(self.registers[0])))
+			meas_filter = self.error_mitigator(n_qubits,qubit_list,self.backend,seed_simulator=self.seed_simulator,noise_model=self.noise_model,basis_gates=self.basis_gates,coupling_map=self.coupling_map,shots=self.shots)
 			result = meas_filter.apply(job)
 			result = result.get_counts(0)
 		else:
-			result = job.get_counts(circuit)
+			result = job.get_counts(self.circuit)
 		measurements = []
 		for key,value in result.items():
 			key_ = key[::-1]
@@ -77,6 +115,10 @@ class HamiltonianSimulation:
 		"""
 		eigenvalues = []
 		var_eigenvalues = []
+		xi_list = []
+		minMeasBool = False
+		sumxiyi = 0
+		sumyi = 0
 		for xi, yi in zip(x,y):
 			if yi >= min_measure:
 				minMeasBool = True

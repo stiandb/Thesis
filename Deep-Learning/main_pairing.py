@@ -13,10 +13,10 @@ np.random.seed(7)
 
 y_rotation = YRotation(bias=True)
 y = np.zeros(2)
-n_fermi=2
-n_spin_orbitals=4
+n_fermi=4#2
+n_spin_orbitals=8#4
 delta = 1
-n = 20
+n = 5
 x = np.ones(4).reshape(1,4)
 out1=2
 E_fci = np.zeros(n)
@@ -32,18 +32,18 @@ for i,g in enumerate(g_array):
 	E_fci[i] = eigvals[0]
 	loss_fn = rayleigh_quotient(H)
 	
-
-	l1 = RotationLinear(x.shape[1],out1,3,rotation=y_rotation,n_parallel=1,shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map,transpile=True,seed_transpiler=42,optimization_level=3,error_mitigator=ErrorMitigation())
-	l2 = IntermediateAnsatzRotationLinear(n_qubits=out1,n_outputs=eigvecs[0].shape[0],n_weights_a=0,n_weights_r=out1+1,ansatz_i=y_rotation_ansatz,ansatz_a=identity_ansatz,rotation=y_rotation,n_parallel = 1,shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=noise_model,basis_gates=basis_gates,classical_bits=None,coupling_map=coupling_map,transpile=True,seed_transpiler=42,optimization_level=3,error_mitigator=ErrorMitigation())
+	l1 = GeneralLinear(n_qubits=2,n_outputs=out1,n_weights_a = 0,n_weights_ent=3,U_enc=AmplitudeEncoder(),U_a = identity_ansatz,U_ent=YRotation(bias=True),shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map,transpile=True,seed_transpiler=42,optimization_level=3,error_mitigator=ErrorMitigation())
+	l2 = GeneralLinear(n_qubits=out1,n_outputs=eigvecs[0].shape[0],n_weights_a = 0, n_weights_ent = out1 + 1, U_enc = YRotationAnsatz(linear_entangler),U_a =identity_ansatz,U_ent =YRotation(bias=True),shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'),noise_model=noise_model,basis_gates=basis_gates,coupling_map=coupling_map,transpile=True,seed_transpiler=42,optimization_level=3,error_mitigator=ErrorMitigation())
+	
 	layers = [l1,l2]
 	model = QDNN(layers,loss_fn)
 
 	model.fit(x,y,seed=42)
 	E_noisy[i] = np.min(model.loss_train)
 
-
-	l1 = RotationLinear(x.shape[1],out1,3,rotation=y_rotation,n_parallel=1,shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'))
-	l2 = IntermediateAnsatzRotationLinear(n_qubits=out1,n_outputs=eigvecs[0].shape[0],n_weights_a=0,n_weights_r=out1+1,ansatz_i=y_rotation_ansatz,ansatz_a=identity_ansatz,rotation=y_rotation)
+	l1 = GeneralLinear(n_qubits=2,n_outputs=out1,n_weights_a = 0,n_weights_ent=3,U_enc=AmplitudeEncoder(),U_a = identity_ansatz,U_ent=YRotation(bias=True),shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'))
+	l2 = GeneralLinear(n_qubits=out1,n_outputs=eigvecs[0].shape[0],n_weights_a = 0, n_weights_ent = out1 + 1, U_enc = YRotationAnsatz(linear_entangler),U_a =identity_ansatz,U_ent =YRotation(bias=True),shots=1000,seed_simulator=42,backend=qk.Aer.get_backend('qasm_simulator'))
+	
 	layers = [l1,l2]
 	model = QDNN(layers,loss_fn)
 
@@ -57,9 +57,9 @@ np.save('pairing{}_{}_E_noisy.npy'.format(n_fermi,n_spin_orbitals),E_noisy)
 np.save('pairing{}_{}_E_ideal.npy'.format(n_fermi,n_spin_orbitals),E_ideal)
 
 
-#E_fci = np.load('pairing{}_{}_E_fci.npy'.format(n_fermi,n_spin_orbitals))
-#E_noisy = np.load('pairing{}_{}_E_noisy.npy'.format(n_fermi,n_spin_orbitals))
-#E_ideal = np.load('pairing{}_{}_E_ideal.npy'.format(n_fermi,n_spin_orbitals))
+E_fci = np.load('pairing{}_{}_E_fci.npy'.format(n_fermi,n_spin_orbitals))
+E_noisy = np.load('pairing{}_{}_E_noisy.npy'.format(n_fermi,n_spin_orbitals))
+E_ideal = np.load('pairing{}_{}_E_ideal.npy'.format(n_fermi,n_spin_orbitals))
 
 fig1 = plt.figure(1)
 

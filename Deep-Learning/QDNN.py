@@ -14,6 +14,7 @@ class QDNN(Utils):
 			layers (list) - List containing layers for dense neural network
 			loss_fn (callable) - loss_fn(y_pred, y) returns the loss where y_pred is 
 									the prediction and y is the actual target variable
+			classification (boolean) - If True, we are dealing with a classification model
 		"""
 		self.classification=classification
 		self.layers = layers
@@ -26,10 +27,10 @@ class QDNN(Utils):
 	def forward(self,X):
 		"""
 		Input:
-			x (numpy array) - Numpy array of dimension [n,p], where n is the number of samples 
+			X (numpy array) - Numpy array of dimension [n,p], where n is the number of samples 
 								and p is the number of predictors
 		Output:
-			x (numpy array) - The output from the neural network.
+			X (numpy array) - The output from the neural network.
 		"""
 
 		for layer in self.layers:
@@ -46,15 +47,25 @@ class QDNN(Utils):
 			X = X/(np.sum(X,axis=1).reshape(X.shape[0],1) + 1e-14)
 		return(X)
 
-	def fit(self,X,y,X_val=None,y_val=None,method='Powell',max_iters = 10000,max_fev=None,tol=1e-14,seed=None,bounds=None,print_loss=False):
+	def fit(self,X,y,X_val=None,y_val=None,method='Powell',max_iters = 10000,max_fev=None,tol=1e-14,seed=None,bounds=None,print_loss=False,w_init = None):
 		"""
 		Uses classical optimization to train the neural network.
 		Input:
 			X (numpy array) - design matrix for the problem
 			y (numpy array) - target variable for the problem
+			X_val (None or numpy array) - Validation design matrix
+			y_val (None or numpy array) - Validation target variables
 			method (str)    - the classical optimization method to use
-			max_inters (int)- The maximum number of iterations for the classical
+			max_iters (int)- The maximum number of iterations for the classical
 								optimization.
+			max_fev (int) - The maximum number of function evaluations for the classical
+								optimization
+			tol (float)   - Tolerance for convergence condition
+			seed (int or None) - The seed for optimizer
+			bounds (Bounds object) - If method allows for bounds, set them with this argument
+			print_loss (boolean) - If True, loss will be printed every function evaluation
+			w_init (None or numpy 1d array) - The initial weights for optimizer
+			
 		"""
 		options = {'disp':True,'maxiter':max_iters}
 		if not seed is None:
@@ -68,7 +79,11 @@ class QDNN(Utils):
 					self.n_weights += sub_layer.w_size
 			else:
 				self.n_weights += layer.w_size
-		w = 1+0.1*np.random.randn(self.n_weights)
+		if w_init is None:
+			w = 1+0.1*np.random.randn(self.n_weights)
+		else:
+			w = w_init
+			self.w_opt = w_init.copy()
 		if bounds is None:
 			w = minimize(self.calculate_loss,w,args=(X,y,X_val,y_val,print_loss),method=method,options=options,tol=tol).x
 		else:
@@ -93,31 +108,24 @@ class QDNN(Utils):
 		if X_val is None:
 			if not self.first_run and (cost_train < np.min(np.array(self.loss_train))):
 				self.w_opt = w.copy()
+				np.save('w_opt.npy',self.w_opt)
+			self.loss_train.append(cost_train)
 			if print_loss:
-				print('Training loss: ',cost_train)
+				try:
+					print('Training loss: ',cost_train, 'Min loss: ', min(self.loss_train))
+				except:
+					print('Training loss: ',cost_train)
 		else:
 			y_val_pred = self.forward(X_val)
 			cost_val = self.loss_fn(y_val_pred,y_val)
+			self.loss_val.append(cost_val)
+			self.loss_train.append(cost_train)
 			if not self.first_run and (cost_val < np.min(np.array(self.loss_val))):
 				self.w_opt = w.copy()
 			if print_loss:
-				print('Training loss: ',cost_train, ' Validation loss: ',cost_val)
-			self.loss_val.append(cost_val)
-		self.loss_train.append(cost_train)
+				print('Training loss: ',cost_train, ' Validation loss: ',cost_val,'Min val loss:',min(self.loss_val))
 		self.first_run = False
 		return(cost_train)
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

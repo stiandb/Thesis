@@ -2,7 +2,6 @@ import sys
 sys.path.append('../')
 from utils import *
 from VQE import *
-from hamiltonian import *
 import matplotlib.pylab as plt
 
 n_fermi = 2
@@ -18,9 +17,10 @@ for i,g in enumerate(g_array):
 	H,e = PairingFCIMatrix()(int(n_fermi/2),int(n_spin_orbitals/2),delta,g)
 	eigvals,eigvecs = np.linalg.eigh(H)
 	res[i,1] = eigvals[0]
+	print('E_fci',eigvals[0])
 	theta = np.random.randn(1)
 	hamiltonian_list= pairing_hamiltonian(4,delta,g)
-	solver = VQE(hamiltonian_list,simple_pairing_ansatz,n_spin_orbitals,shots=10000,seed_simulator=42)
+	solver = VQE(hamiltonian_list,simple_pairing_ansatz,n_spin_orbitals,shots=500,seed_simulator=42)
 	solver.classical_optimization(theta,method='COBYLA')
 	E = solver.expectation_value(solver.theta)
 	res[i,2] = E
