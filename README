@@ -33,3 +33,5 @@ Deep-Learning folder:
   loss.py includes some of the loss functions utilized in this thesis. For example the Rayleigh Quotient and the MSE.
   QDNN.py containts the class QDNN. This class can be used to set up and train an arbitrary neural network.
   
+CCD-pairing folder:
+  Includes scripts to solve for the pairing model Hamiltonian with the ccd algorithm. Made in collaboration with Heine Aabø.
