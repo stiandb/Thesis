@@ -14,7 +14,7 @@ res = np.zeros((n,3,2,2))
 g_array = np.linspace(0,10,n)
 delta = 1
 for j, error_mitigator in enumerate([None,ErrorMitigation()]):
-	for k,ansatz in enumerate([simple_pairing_ansatz,PairingSimpleUCCDAnsatz(PairingInitialState(n_fermi))]):
+	for k,ansatz in enumerate([SimplePairingAnsatz(),PairingSimpleUCCDAnsatz(PairingInitialState(n_fermi))]):
 		for i,g in enumerate(g_array):
 			H,e = PairingFCIMatrix()(int(n_fermi/2),int(n_spin_orbitals/2),delta,g)
 			eigvals,eigvecs = np.linalg.eigh(H)

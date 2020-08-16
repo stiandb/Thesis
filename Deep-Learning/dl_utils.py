@@ -6,11 +6,11 @@ class Utils:
 	Some utilities to be utilized by neural networks
 	"""
 	def set_weights(self,w):
-	"""
-	Sets the weights to w for neural network constructed with class QDNN
-	Input:
-		w (numpy 1d array) - Array of all weights for neural network
-	"""
+		"""
+		Sets the weights to w for neural network constructed with class QDNN
+		Input:
+			w (numpy 1d array) - Array of all weights for neural network
+		"""
 		w_idx = 0
 		w = w.flatten()
 		for layer in self.layers:

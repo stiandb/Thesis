@@ -13,8 +13,8 @@ np.random.seed(7)
 
 y_rotation = YRotation(bias=True)
 y = np.zeros(2)
-n_fermi=4#2
-n_spin_orbitals=8#4
+n_fermi=4#2           #Change to solve for more/less particles
+n_spin_orbitals=8#4   #Change to solve for more/less spin-orbitals
 delta = 1
 n = 5
 x = np.ones(4).reshape(1,4)

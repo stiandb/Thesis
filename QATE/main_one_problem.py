@@ -15,7 +15,7 @@ def initial_state(circuit,registers):
 	return(circuit,registers)
 
 
-"""steps=80
+steps=80
 dt = 0.5
 t=steps*dt
 E = []
@@ -43,7 +43,7 @@ plt.show()
 
 H_0 = [[factor,[0,'z']],[factor,[1,'z']],[-factor,[2,'z']],[-factor,[3,'z']]]
 H_1 = pairing_hamiltonian(n_spin_orbitals,1,5)
-"""
+
 
 steps=55
 dt = 0.2
