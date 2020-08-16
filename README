@@ -1,2 +1,37 @@
 NB: Qiskit version 0.11.1 was utilized when programming for this thesis. New versions have been released since then,
 which may or may not function with the provided code.
+
+QPE folder:
+  -main.py produces figures 7.1 and 7.2
+  HamiltonianSimulation.py contains the HamiltonianSimulation class. This class used the QPE algorithm to find the eigenvalues of
+  an arbitrary Jordan-Wigner transformed Hamiltonian
+  
+VQE folder:
+  -main_pairing_ideal.py produces figure 7.3
+  -main_pairing_noisy.py produces figure 7.5
+  -main_pairing_uccd.py produces figure 7.4
+  -main_pairing_real.py produces figure 7.6
+  -main_pairing_uccd_recursive produces figure 7.13
+  VQE.py contains the VQE class. This class is used to find the ground state energy of an arbitrary Jordan-Wigner transformed Hamiltonian
+  with an arbitrary variational ansatz
+  
+QATE folder:
+  -main_one_problem.py produces figure 7.7 and 7.8
+  -learn_qate_operator.py produces figure 7.12
+  QATE.py contains the QATE class. This class can evolve from an arbitrary initial Hamiltonian to the problem Hamiltonian. Solves
+  for the ground state energy of a system by using the QATE algorithm
+
+Deep-Learning folder:
+  -main_test.py produces figure 7.14
+  -main_pairing.py produces figure 7.15
+  -main_autoencoder produces figure 7.10
+  -learn_time_evolution_operator_ml.py produces figure 7.9
+  -main_recursive_random_circuit.py produces figure 7.11
+  layers.py has the GeneralLinear and GeneralRecurrent class. These classes generates arbitrary quantum dense and recurrent layers.
+  AutoEncoder.py contains the AutoEncoder class. This class is used to maximize the inner product between an ansatz and an arbitrary unitary operator.
+  dl_utils.py includes some utilities that are essential for the neural networks. Includes some entanglers and other convenient functions
+  loss.py includes some of the loss functions utilized in this thesis. For example the Rayleigh Quotient and the MSE.
+  QDNN.py containts the class QDNN. This class can be used to set up and train an arbitrary neural network.
+  
+CCD-pairing folder:
+  Includes scripts to solve for the pairing model Hamiltonian with the ccd algorithm. Made in collaboration with Heine Aabø.
