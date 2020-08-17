@@ -111,7 +111,7 @@ y_pred = model.forward(X_train)
 
 plt.plot(x,y_pred,'+r',label='Predicted')
 plt.plot(x,y_train,'g',label='Actual')
-plt.title(r'Learning $f(x) = 3 \sin{x} - \frac{1}{2}x$ with Neural Network')
+plt.title(r'Learning $f(x) = 3 \sin{x} - \frac{1}{2}x$ with Neural Network. Inner product entangler')
 plt.xlabel('x')
 plt.ylabel('f(x) (Normalized between 0 and 1)')
 plt.legend()

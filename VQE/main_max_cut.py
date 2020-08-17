@@ -11,7 +11,7 @@ W = np.array([[0,3,0,0,1],[3,0,2,0,3],[0,2,0,2,0],[0,0,2,0,3],[1,3,0,3,0]])
 hamiltonian_list = max_cut_hamiltonian(W)
 
 n_qubits = 5
-solver = VQE(hamiltonian_list,y_rotation_ansatz,n_qubits,seed_simulator=seed_simulator)
+solver = VQE(hamiltonian_list,y_rotation_ansatz,n_qubits,seed_simulator=seed_simulator,print_energies=True)
 
 theta = np.random.randn(n_qubits)
 theta = solver.classical_optimization(theta,method='Powell')

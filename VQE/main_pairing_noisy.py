@@ -2,7 +2,6 @@ import sys
 sys.path.append('../')
 from utils import *
 from VQE import *
-from hamiltonian import *
 from settings import ibmq_london_noise_model as noise_model, ibmq_london_basis_gates as basis_gates, ibmq_london_coupling_map as coupling_map
 import matplotlib.pylab as plt
 

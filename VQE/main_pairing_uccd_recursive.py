@@ -27,7 +27,7 @@ for i,g in enumerate(g_array):
 	print('E_CCD:',res[i,3])
 	theta = np.random.randn(int(n_fermi/2)*int((n_spin_orbitals-n_fermi)/2))
 	hamiltonian_list= pairing_hamiltonian(n_spin_orbitals,delta,g)
-	solver = VQE(hamiltonian_list,RecursivePairingUCCD(n_fermi,n_spin_orbitals,PairingInitialState(n_fermi),theta,dt=1,T=1,ansatz=YRotationAnsatz(linear_entangler),n_weights=4,steps=2,print_loss=True),n_spin_orbitals,shots=1000,seed_simulator=42,print_energies=True)
+	solver = VQE(hamiltonian_list,RecursivePairingUCCD(n_fermi,n_spin_orbitals,PairingInitialState(n_fermi),theta,dt=1,T=1,ansatz=YRotationAnsatz(linear_entangler),n_weights=4,steps=2,print_loss=False),n_spin_orbitals,shots=1000,seed_simulator=42,print_energies=True)
 	solver.classical_optimization(theta)
 	E = solver.expectation_value(solver.theta)
 	res[i,2] = E

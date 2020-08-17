@@ -29,8 +29,6 @@ t = 100*dt
 for t_qubits in [4,6,8]:
 	for noise_model,basis_gates,coupling_map in [[noise,gate,Map],[None,None,None]]:
 		if not noise_model is None:
-			if t_qubits  > 4:
-				continue
 			error_mitigator = ErrorMitigation()
 		else:
 			error_mitigator = None
@@ -69,6 +67,34 @@ plt.xlim(min(xticksx) - 1, max(xticksx) + 1)
 plt.ylabel('Times measured')
 plt.legend()
 plt.show()
+
+
+t_qubits = 4
+string = 'Noisy'
+x4 = np.load('x{}{}.npy'.format(t_qubits,string))
+y4 = np.load('y{}{}.npy'.format(t_qubits,string))
+t_qubits = 6
+string = 'Noisy'
+x6 = np.load('x{}{}.npy'.format(t_qubits,string))
+y6 = np.load('y{}{}.npy'.format(t_qubits,string))
+t_qubits = 8
+string = 'Noisy'
+x8 = np.load('x{}{}.npy'.format(t_qubits,string))
+y8 = np.load('y{}{}.npy'.format(t_qubits,string))
+solver = HamiltonianSimulation(u_qubits,t_qubits,hamiltonian_list,qpe_pairing_initial_state)
+print(solver.find_peaks(x8,y8,2))
+print(xticksx)
+plt.plot(x4,y4,'b--',alpha=0.5,label='4 t-qubits')
+plt.plot(x6,y6,'g--',alpha=0.5,label='6 t-qubits')
+plt.plot(x8,y8,'r',label='8 t-qubits')
+plt.title(string + r' QPE: {} u-qubits, $\delta = ${}, $g = ${}'.format(u_qubits,delta,g))
+plt.xlabel('Energy [u.l]')
+plt.xticks(xticksx)
+plt.xlim(min(xticksx) - 1, max(xticksx) + 1)
+plt.ylabel('Times measured')
+plt.legend()
+plt.show()
+
 
 
 
